@@ -1,0 +1,9 @@
+.*
+*.log
+*.env
+*.env.*
+.idea/
+.vscode/
+__pycache__/
+!.gitignore
+config/config.json

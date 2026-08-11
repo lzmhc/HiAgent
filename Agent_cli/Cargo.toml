@@ -1,0 +1,17 @@
+[package]
+name = "Agent_cli"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+color-eyre = "0.6.5"
+ratatui = "0.30.2"
+crossterm = "0.29.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+futures-util = "0.3.32"
+reqwest = { version = "0.12", features = ["json", "stream"] }
+eventsource-stream = "0.2.3"
+tokio = { version = "1.52.3", features = ["full"] }
+[server]
+url = "http://127.0.0.1:8000/chat"
