@@ -1,4 +1,5 @@
 import time
+from typing import List, Dict
 
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
@@ -7,6 +8,7 @@ import json
 
 from agents.core_agent import CoreAgent
 from config.global_config import GlobalConfig
+from memory.message import UserMessage
 
 app = FastAPI()
 
@@ -15,19 +17,16 @@ async def chat(request: Request):
     body = await request.json()
     prompt = body["messages"]
     config = GlobalConfig()
-    messages = config.get_message().build_user_message(prompt)
+    messages: List[Dict] = [UserMessage(prompt).to_dict()]
     agent = CoreAgent(
         config,
         messages=messages
     )
 
     def event_stream():
-        assistant_response = ""
         for event in agent.run():
-            if event["type"] == "content":
-                assistant_response += event["content"]
             yield (
-                f"event: {event['type']}\n"
+                f"event: {event['role']}\n"
                 f"data: {json.dumps(event,ensure_ascii=False)}\n\n"
             )
 

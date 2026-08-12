@@ -2,6 +2,8 @@ import json
 import re
 from typing import Generator
 
+from memory.message import ReasonMessage, ToolCallMessage, StopMessage, ContentMessage
+
 
 class ToolCallParser:
     def __init__(self):
@@ -10,7 +12,6 @@ class ToolCallParser:
         self.tool_call_id = None
         self.tool_name = ""
         self.tool_args = ""
-        self.need_call_tool = False
 
         self.xml_mode = False
         self.xml_buffer = ""
@@ -29,10 +30,7 @@ class ToolCallParser:
             reasoning_content = getattr(delta, "reasoning_content", None)
             if reasoning_content:
                 self.reasoning_queue.append(reasoning_content)
-                yield {
-                    "type": "reasoning",
-                    "content": reasoning_content
-                }
+                yield ReasonMessage(reasoning_content).to_dict()
                 continue
 
             # 普通文本
@@ -51,10 +49,7 @@ class ToolCallParser:
                     continue
 
                 self.normal_text_queue.append(content)
-                yield {
-                    "type": "content",
-                    "content": content
-                }
+                yield ContentMessage(content).to_dict()
                 continue
 
             if hasattr(delta, "tool_calls") and delta.tool_calls:
@@ -68,33 +63,24 @@ class ToolCallParser:
                         if getattr(func, "arguments", None):
                             self.tool_args += func.arguments
 
-                self.need_call_tool = True
-
             if getattr(choice, "finish_reason", None) == "tool_calls":
-                self.need_call_tool = True
+                yield ToolCallMessage(self.tool_call_id, "function", self.tool_name, self.tool_args).to_dict()
+            if getattr(choice, "finish_reason", None) == "stop":
+                yield StopMessage().to_dict()
 
-        if self.xml_buffer:
-            try:
-                func_match = re.search(r"<function=(.*?)>", self.xml_buffer, re.S)
-                if func_match:
-                    self.tool_name = func_match.group(1).strip()
-                params = {}
-                for p_match in re.finditer(r"<parameter=(.*?)>(.*?)</parameter>", self.xml_buffer, re.S):
-                    key = p_match.group(1).strip()
-                    val = p_match.group(2).strip()
-                    params[key] = val
-                self.tool_args = json.dumps(params, ensure_ascii=False)
-                self.tool_call_id = f"xml_{self.tool_name}"
-            except Exception:
-                self.tool_name = ""
-                self.tool_args = ""
-                self.tool_call_id = None
-
-        yield {
-            "type": "finish",
-            "text": "".join(self.normal_text_queue),
-            "need_tool": self.need_call_tool,
-            "tool_id": self.tool_call_id,
-            "tool_name": self.tool_name,
-            "tool_args": self.tool_args
-        }
+        # if self.xml_buffer:
+        #     try:
+        #         func_match = re.search(r"<function=(.*?)>", self.xml_buffer, re.S)
+        #         if func_match:
+        #             self.tool_name = func_match.group(1).strip()
+        #         params = {}
+        #         for p_match in re.finditer(r"<parameter=(.*?)>(.*?)</parameter>", self.xml_buffer, re.S):
+        #             key = p_match.group(1).strip()
+        #             val = p_match.group(2).strip()
+        #             params[key] = val
+        #         self.tool_args = json.dumps(params, ensure_ascii=False)
+        #         self.tool_call_id = f"xml_{self.tool_name}"
+        #     except Exception:
+        #         self.tool_name = ""
+        #         self.tool_args = ""
+        #         self.tool_call_id = None

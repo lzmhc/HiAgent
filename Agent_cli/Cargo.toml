@@ -13,5 +13,5 @@ futures-util = "0.3.32"
 reqwest = { version = "0.12", features = ["json", "stream"] }
 eventsource-stream = "0.2.3"
 tokio = { version = "1.52.3", features = ["full"] }
-[server]
-url = "http://127.0.0.1:8000/chat"
+# Default backend endpoint (configure via CHAT_API_URL at runtime):
+# http://127.0.0.1:8000/chat

@@ -1,30 +1,30 @@
-mod app;
-mod ui;
 mod agent_event;
 mod api;
+mod app;
+mod ui;
 
-use std::{
-    io,
-    sync::mpsc,
-    time::{Duration}
-};
+use crate::agent_event::{AgentEvent, ChatChunk};
+use app::App;
 use crossterm::{
     event::{self, Event, KeyCode, KeyModifiers},
     execute,
-    terminal::{
-        disable_raw_mode, enable_raw_mode,
-        EnterAlternateScreen, LeaveAlternateScreen,
-    },
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use ratatui::{
-    backend::CrosstermBackend,
-    Terminal,
-};
-use crate::agent_event::{AgentEvent, ChatChunk};
-use app::App;
+use ratatui::{Terminal, backend::CrosstermBackend};
+use std::{io, sync::mpsc, time::Duration};
 
+fn main() {
+    if let Err(err) = run() {
+        let _ = disable_raw_mode();
+        let _ = execute!(io::stdout(), LeaveAlternateScreen);
+        eprintln!("{err:#}");
+        std::process::exit(1);
+    }
+}
 
-fn main() -> Result<(), io::Error> {
+fn run() -> color_eyre::eyre::Result<()> {
+    color_eyre::install()?;
+
     enable_raw_mode()?;
 
     let mut stdout = io::stdout();
@@ -49,9 +49,7 @@ fn main() -> Result<(), io::Error> {
             if let Event::Key(key) = event::read()? {
                 match key.code {
                     // ctrl+q 退出
-                    KeyCode::Char('q')
-                        if key.modifiers.contains(KeyModifiers::CONTROL) =>
-                    {
+                    KeyCode::Char('q') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                         break;
                     }
 
@@ -87,9 +85,7 @@ fn main() -> Result<(), io::Error> {
                     KeyCode::Down => {
                         app.scroll += 1;
 
-                        app.scrollbar = app
-                            .scrollbar
-                            .position(app.scroll as usize);
+                        app.scrollbar = app.scrollbar.position(app.scroll as usize);
                     }
                     KeyCode::Esc => {
                         app.clear();
@@ -103,10 +99,7 @@ fn main() -> Result<(), io::Error> {
 
     disable_raw_mode()?;
 
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen
-    )?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
 
     terminal.show_cursor()?;
 

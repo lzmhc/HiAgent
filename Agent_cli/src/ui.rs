@@ -1,9 +1,14 @@
-use ratatui::{
-    Frame, layout::{Constraint,Direction,Layout,}, style::{Color,Modifier,Style,}, text::{Line, Span, Text}, widgets::{Block, BorderType, Borders, Paragraph, Scrollbar, ScrollbarOrientation},
-};
-use ratatui::widgets::Wrap;
-use ratatui::layout::Rect;
 use crate::{agent_event::ChatChunk, app::App};
+use ratatui::layout::Rect;
+/// Helpers for drawing the TUI layout.
+use ratatui::widgets::Wrap;
+use ratatui::{
+    Frame,
+    layout::{Constraint, Direction, Layout},
+    style::{Color, Modifier, Style},
+    text::{Line, Span, Text},
+    widgets::{Block, BorderType, Borders, Paragraph, Scrollbar, ScrollbarOrientation},
+};
 
 pub fn draw(frame: &mut Frame, app: &mut App) {
     let layout = Layout::default()
@@ -26,18 +31,13 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
 }
 
 fn draw_header(frame: &mut Frame, area: ratatui::layout::Rect) {
-    let header = Paragraph::new(
-        "🤖 AgentBot    Model: qwen3-235b    Workspace: ~/project",
-    )
-    .style(
-        Style::default()
-            .fg(Color::Cyan)
-            .add_modifier(Modifier::BOLD),
-    )
-    .block(
-        Block::default()
-            .borders(Borders::BOTTOM),
-    );
+    let header = Paragraph::new("🤖 AgentBot    Model: qwen3-235b    Workspace: ~/project")
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
+        .block(Block::default().borders(Borders::BOTTOM));
     frame.render_widget(header, area);
 }
 
@@ -96,14 +96,10 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
     let chat = Paragraph::new(text)
         .scroll((app.scroll, 0))
         .wrap(Wrap { trim: false });
-        frame.render_widget(chat, area);
-        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight);
-        frame.render_stateful_widget(
-            scrollbar,
-            area,
-            &mut app.scrollbar,
-        );
-    }
+    frame.render_widget(chat, area);
+    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight);
+    frame.render_stateful_widget(scrollbar, area, &mut app.scrollbar);
+}
 
 fn draw_input(frame: &mut Frame, area: Rect, app: &App) {
     let block = Block::default()
@@ -111,10 +107,14 @@ fn draw_input(frame: &mut Frame, area: Rect, app: &App) {
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(Color::Cyan))
         .title(" 输入 ")
-        .title_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD));
+        .title_style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        );
 
-    let input_text = format!("{}", app.input.as_str());
-    
+    let input_text = app.input.as_str().to_string();
+
     let input = Paragraph::new(input_text)
         .style(Style::default().fg(Color::White))
         .wrap(Wrap { trim: false })
@@ -123,17 +123,14 @@ fn draw_input(frame: &mut Frame, area: Rect, app: &App) {
     let inner_area = block.inner(area);
     frame.render_widget(input, area);
 
-    let cursor_x = inner_area.x + 3 + app.input.len() as u16;
+    let cursor_x = inner_area.x + app.input.len() as u16;
     let cursor_y = inner_area.y;
-    
+
     frame.set_cursor_position((cursor_x, cursor_y));
 }
 
 fn draw_footer(frame: &mut Frame, area: ratatui::layout::Rect) {
-    let footer = Paragraph::new(
-        "Ctrl+Q Exit",
-    )
-    .style(Style::default().fg(Color::DarkGray));
+    let footer = Paragraph::new("Ctrl+Q Exit").style(Style::default().fg(Color::DarkGray));
 
     frame.render_widget(footer, area);
 }

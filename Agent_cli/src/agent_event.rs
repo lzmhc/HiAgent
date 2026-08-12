@@ -6,10 +6,7 @@ pub enum AgentEvent {
 
     Content(String),
 
-    ToolStart {
-        tool: String,
-        args: String,
-    },
+    ToolStart { tool: String, args: String },
 
     ToolResult(String),
 
@@ -25,10 +22,7 @@ pub enum ChatChunk {
 
     Assistant(String),
 
-    ToolCall {
-        tool: String,
-        args: String,
-    },
+    ToolCall { tool: String, args: String },
 
     ToolResult(String),
 

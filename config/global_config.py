@@ -3,9 +3,6 @@ import os
 import tomllib
 from pathlib import Path
 
-from memory.message import PiMessage, CodexMessage
-
-
 class BaseConfig:
     def __init__(self):
         self.timeout = None
@@ -28,7 +25,6 @@ class PiConfig(BaseConfig):
         self.auth = self.path + "/auth.json"
         self.trust = self.path + "/trust.json"
         self.settings = self.path + "/settings.json"
-        self.message = PiMessage()
 
     def read_trust(self):
         with open(self.trust) as f:
@@ -69,9 +65,6 @@ class PiConfig(BaseConfig):
             return auth["xiaomi"]["key"]
         return None
 
-    def get_message(self):
-        return self.message
-
     def get_timeout(self):
         return self.timeout
 
@@ -87,7 +80,6 @@ class CodexConfig(BaseConfig):
         self.path = os.path.expanduser('~') + "/.codex"
         self.auth = self.path + "/auth.json"
         self.config = self.path + "/config.toml"
-        self.message = CodexMessage()
 
     def read_trust(self):
         with open(self.config, "rb") as f:
@@ -119,9 +111,6 @@ class CodexConfig(BaseConfig):
         provider = self.get_provider()
         return self.read_config()["model_providers"][provider]["api_key"]
 
-    def get_message(self):
-        return self.message
-
     def get_timeout(self):
         return self.timeout
 
@@ -149,9 +138,6 @@ class GlobalConfig:
         if agent_type == "codex":
             return CodexConfig()
         return None
-
-    def get_message(self):
-        return self.config.get_message()
 
 
 if __name__ == "__main__":

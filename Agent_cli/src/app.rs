@@ -1,4 +1,3 @@
-
 use ratatui::widgets::ScrollbarState;
 
 use crate::agent_event::{AgentEvent, ChatChunk};
@@ -17,7 +16,7 @@ impl App {
     pub fn new() -> Self {
         Self {
             input: String::new(),
-            blocks: Vec::new(), 
+            blocks: Vec::new(),
             scroll: 0,
             scrollbar: ScrollbarState::default(),
         }
@@ -36,38 +35,31 @@ impl App {
 
     pub fn handle_agent_event(&mut self, event: AgentEvent) {
         match event {
-            AgentEvent::Content(text) => {
-                match self.blocks.last_mut() {
-                    Some(ChatChunk::Assistant(s)) => {
-                        s.push_str(&text);
-                    }
-                    _ => {
-                        self.blocks.push(ChatChunk::Assistant(text));
-                    }
+            AgentEvent::Content(text) => match self.blocks.last_mut() {
+                Some(ChatChunk::Assistant(s)) => {
+                    s.push_str(&text);
                 }
-            }
+                _ => {
+                    self.blocks.push(ChatChunk::Assistant(text));
+                }
+            },
 
-            AgentEvent::Reasoning(text) => {
-                match self.blocks.last_mut() {
-                    Some(ChatChunk::Reasoning(s)) => {
-                        s.push_str(&text);
-                    }
-                    _ => {
-                        self.blocks.push(ChatChunk::Reasoning(text));
-                    }
+            AgentEvent::Reasoning(text) => match self.blocks.last_mut() {
+                Some(ChatChunk::Reasoning(s)) => {
+                    s.push_str(&text);
                 }
-            }
+                _ => {
+                    self.blocks.push(ChatChunk::Reasoning(text));
+                }
+            },
             AgentEvent::ToolStart { tool, args } => {
-                self.blocks.push(ChatChunk::ToolCall {
-                    tool,
-                    args,
-                });
+                self.blocks.push(ChatChunk::ToolCall { tool, args });
             }
 
             AgentEvent::ToolResult(result) => {
                 self.blocks.push(ChatChunk::ToolResult(result));
             }
-            
+
             AgentEvent::Error(err) => {
                 self.blocks.push(ChatChunk::Error(err));
             }

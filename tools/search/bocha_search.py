@@ -1,7 +1,19 @@
 import json
+import os
 import requests
-api_key = "sk-xxxxxx"
+from pathlib import Path
+
+
+def _load_api_key() -> str:
+    """从 config/config.json 加载 bocha API key"""
+    config_path = Path(__file__).parent.parent.parent / "config" / "config.json"
+    with open(config_path) as f:
+        config = json.load(f)
+    return config.get("bocha_api", "")
+
+
 def bocha_search(query: str, count: int = 5):
+    api_key = _load_api_key()
     url = "https://api.bocha.cn/v1/web-search"
     data = json.dumps({
         "query": query,

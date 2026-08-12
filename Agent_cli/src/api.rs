@@ -1,10 +1,10 @@
-use std::sync::mpsc::Sender;
+use std::{env, sync::mpsc::Sender};
 
+use crate::agent_event::AgentEvent;
 use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
 use reqwest::Client;
 use serde_json::json;
-use crate::agent_event::AgentEvent;
 
 use serde::Deserialize;
 
@@ -19,6 +19,11 @@ struct SseEvent {
     result: Option<serde_json::Value>,
 }
 
+fn api_url() -> String {
+    // Overridable backend endpoint (default: local FastAPI chat service).
+    env::var("CHAT_API_URL").unwrap_or_else(|_| "http://127.0.0.1:8000/chat".to_string())
+}
+
 pub async fn chat(
     message: String,
     tx: Sender<AgentEvent>,
@@ -26,7 +31,7 @@ pub async fn chat(
     let client = Client::new();
 
     let response = client
-        .post("http://127.0.0.1:8000/chat")
+        .post(api_url())
         .json(&json!({
             "messages": message
         }))
@@ -35,44 +40,46 @@ pub async fn chat(
 
     let mut stream = response.bytes_stream().eventsource();
     while let Some(event) = stream.next().await {
-
         let event = event?;
 
         let data: SseEvent = serde_json::from_str(&event.data)?;
 
         match data.event_type.as_str() {
-
             "reasoning" => {
-                tx.send(
-                    AgentEvent::Reasoning(
-                        data.content.unwrap_or_default()
-                    )
-                )?;
+                tx.send(AgentEvent::Reasoning(data.content.unwrap_or_default()))?;
             }
 
             "content" => {
-                tx.send(
-                    AgentEvent::Content(
-                        data.content.unwrap_or_default()
-                    )
-                )?;
+                tx.send(AgentEvent::Content(data.content.unwrap_or_default()))?;
             }
 
             "finish" => {
-                tx.send(
-                    AgentEvent::Finish
-                )?;
+                tx.send(AgentEvent::Finish)?;
             }
 
             "error" => {
-                tx.send(
-                    AgentEvent::Error(
-                        data.content.unwrap_or_default()
-                    )
-                )?;
+                tx.send(AgentEvent::Error(data.content.unwrap_or_default()))?;
             }
 
-            _ => {}
+            "tool_start" => {
+                tx.send(AgentEvent::ToolStart {
+                    tool: data.tool.unwrap_or_default(),
+                    args: data.args.map(|v| v.to_string()).unwrap_or_default(),
+                })?;
+            }
+
+            "tool_result" => {
+                tx.send(AgentEvent::ToolResult(
+                    data.result
+                        .map(|v| v.to_string())
+                        .or(data.content)
+                        .unwrap_or_default(),
+                ))?;
+            }
+
+            other => {
+                eprintln!("[sse] unknown event type: {other}");
+            }
         }
     }
 

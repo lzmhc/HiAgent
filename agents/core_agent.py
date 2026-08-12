@@ -1,9 +1,12 @@
 import json
+from typing import List, Dict
 
 from agents.skills import SkillManage
 from agents.tool_call_parser import ToolCallParser
 from agents.base_llm_adapter import BaseLLMAdapter, create_adapter
 from config.global_config import GlobalConfig
+from memory.message import SystemMessage, ErrorMessage, UserMessage, ToolStartMessage, AssistantMessage, ToolMessage, \
+    StopMessage
 from tools.execute_shell.execute_shell import execute_shell
 from tools.search.brave_search import brave_search
 from tools.search.bocha_search import bocha_search
@@ -84,7 +87,7 @@ tools = [
 ]
 
 class CoreAgent:
-    def __init__(self, config: GlobalConfig, messages):
+    def __init__(self, config: GlobalConfig, messages : List[Dict]):
         super().__init__()
         self.config = config
         self.messages = messages
@@ -101,7 +104,6 @@ class CoreAgent:
     def run(self):
         user_msg = self.messages[-1]
         skill_match = self.skill_manage.match_skills(user_msg)
-        print(f"使用skill{skill_match}")
         if skill_match:
             prompt = "\n\n".join(
                 f"""
@@ -119,90 +121,47 @@ class CoreAgent:
                 """
                 for skill in skill_match
             )
-            self.messages.insert(0, {
-                "role": "system",
-                "content": prompt
-            })
+            self.messages.insert(0, SystemMessage(prompt).to_dict())
         try:
-            tool_round = 0
             while True:
+                stop = False
                 parser = ToolCallParser()
                 stream = self.adapter.stream_invoke(messages=self.messages, tools=tools)
                 parse_result = None
                 for event in parser.process_stream(stream):
-                    if event["type"] == "content":
+                    if event["role"] == "content":
+                        # 文本内容
                         yield event
-                    elif event["type"] == "reasoning":
+                    elif event["role"] == "reason":
+                        # 推理内容
                         yield event
-                    elif event["type"] == "finish":
+                    elif event["role"] == "toolCall":
+                        # 工具调用结束
                         parse_result = event
-                if not parse_result:
-                    yield {
-                        "type": "error",
-                        "content": "解析失败，没有 finish 事件"
-                    }
-                    return
-                if not parse_result["need_tool"]:
-                    yield {
-                        "type": "finish",
-                        "text": parse_result["text"]
-                    }
-                    return
-                tool_name = parse_result["tool_name"]
-                tool_args_str = parse_result["tool_args"]
-                tool_id = parse_result["tool_id"]
-                if tool_name not in available_tools:
-                    yield {
-                        "type": "error",
-                        "content": f"未知工具：{tool_name}"
-                    }
-                    return
-
-                try:
-                    args = json.loads(tool_args_str) if tool_args_str else {}
-                except json.JSONDecodeError:
-                    yield {
-                        "type": "error",
-                        "content": f"工具参数解析失败：{tool_args_str}"
-                    }
-                    return
-                yield {
-                    "type": "tool_start",
-                    "tool": tool_name,
-                    "args": args
-                }
-                try:
-                    tool_ret = available_tools[tool_name](** args)
-                except Exception as e:
-                    yield {
-                        "type": "error",
-                        "content": f"工具执行失败：{e}"
-                    }
-                    return
-                yield {
-                    "type": "tool_result",
-                    "tool": tool_name,
-                    "result": tool_ret
-                }
-                self.messages.append({
-                    "role": "assistant",
-                    "tool_calls": [{
-                        "id": tool_id,
-                        "type": "function",
-                        "function": {
-                            "name": tool_name,
-                            "arguments": tool_args_str
-                        }
-                    }]
-                })
-                self.messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_id,
-                    "content": json.dumps(tool_ret, ensure_ascii=False)
-                })
-                tool_round += 1
+                    elif event["role"] == "stop":
+                        stop = True
+                        break
+                if parse_result :
+                    func = parse_result.get("function", {})
+                    tool_call_id = parse_result.get("id")
+                    tool_name = func.get("name")
+                    tool_args_str = func.get("arguments")
+                    try:
+                        args = json.loads(tool_args_str) if tool_args_str else {}
+                    except json.JSONDecodeError:
+                        yield ErrorMessage(f"工具参数解析失败：{tool_args_str}").to_dict()
+                        return
+                    yield ToolStartMessage(tool_name, tool_args_str).to_dict()
+                    try:
+                        tool_ret = available_tools[tool_name](** args)
+                    except Exception as e:
+                        yield ErrorMessage(f"工具执行失败：{e}").to_dict()
+                        return
+                    yield parse_result
+                    self.messages.append(AssistantMessage(None, [parse_result]).to_dict())
+                    self.messages.append(ToolMessage(json.dumps(tool_ret, ensure_ascii=False), tool_call_id).to_dict())
+                    continue
+                if stop:
+                    break
         except Exception as e:
-            yield {
-                "type": "error",
-                "content": str(e)
-            }
+            yield ErrorMessage(str(e)).to_dict()
