@@ -15,7 +15,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // Header
+            Constraint::Length(2), // Header
             Constraint::Min(1),    // Chat
             Constraint::Length(5), // Input
             Constraint::Length(1), // Footer
@@ -89,10 +89,23 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
             }
 
             ChatChunk::Assistant(msg) => {
-                text.lines.push(Line::from(vec![
-                    Span::styled("🤖 ", Style::default().fg(Color::Cyan)),
-                    Span::raw(msg),
-                ]));
+                let lines: Vec<&str> = msg.lines().collect();
+                if lines.is_empty() {
+                    text.lines.push(Line::from(vec![
+                        Span::styled("🤖 ", Style::default().fg(Color::Cyan)),
+                    ]));
+                } else {
+                    text.lines.push(Line::from(vec![
+                        Span::styled("🤖 ", Style::default().fg(Color::Cyan)),
+                        Span::raw(lines[0]),
+                    ]));
+                    for line in &lines[1..] {
+                        text.lines.push(Line::from(vec![
+                            Span::raw("   "),
+                            Span::raw(*line),
+                        ]));
+                    }
+                }
                 true
             }
 
@@ -105,7 +118,6 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
             }
 
             ChatChunk::ToolResult { .. } => {
-                // 隐藏工具调用结果
                 false
             }
 
@@ -118,7 +130,6 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
             }
         };
 
-        // 每个聊天块之间留一个空行（仅在实际渲染内容后）
         if rendered {
             text.lines.push(Line::default());
         }

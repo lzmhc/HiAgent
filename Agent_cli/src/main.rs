@@ -37,7 +37,6 @@ fn run() -> color_eyre::eyre::Result<()> {
 
     let mut app = App::new();
 
-    // Fetch app status at startup
     {
         let rt = tokio::runtime::Runtime::new()?;
         match rt.block_on(api::fetch_status()) {

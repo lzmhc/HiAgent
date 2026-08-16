@@ -32,8 +32,7 @@ struct FunctionData {
 }
 
 fn api_url() -> String {
-    // Overridable backend endpoint (default: local FastAPI chat service).
-    env::var("CHAT_API_URL").unwrap_or_else(|_| "http://127.0.0.1:8000/chat".to_string())
+    String::from("http://127.0.0.1:8000")
 }
 
 pub async fn chat(
@@ -43,7 +42,7 @@ pub async fn chat(
     let client = Client::new();
 
     let response = client
-        .post(api_url())
+        .post(format!("{}/chat", api_url()))
         .json(&json!({
             "messages": message
         }))
@@ -94,7 +93,7 @@ pub async fn chat(
 }
 
 pub async fn fetch_status() -> Result<AppStatus, Box<dyn std::error::Error>> {
-    let status_url = "http://127.0.0.1:8000/status";
+    let status_url = format!("{}/status", api_url());
     let status = reqwest::get(status_url).await?.json::<AppStatus>().await?;
     Ok(status)
 }
