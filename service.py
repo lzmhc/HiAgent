@@ -9,8 +9,19 @@ import json
 from agents.core_agent import CoreAgent
 from config.global_config import GlobalConfig
 from memory.message import UserMessage
+from pathlib import Path
 
 app = FastAPI()
+
+@app.get("/status")
+async def status():
+    config = GlobalConfig().get_config()
+    return {
+        "name": "HiAgent",
+        "model": config.get_model(),
+        "model_reasoning_effort": config.get_think_level(),
+        "workspace": str(Path.cwd()),
+    }
 
 @app.post("/chat")
 async def chat(request: Request):

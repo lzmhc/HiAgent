@@ -1,12 +1,12 @@
-mod agent_event;
+mod event;
 mod api;
 mod app;
 mod ui;
 
-use crate::agent_event::{AgentEvent, ChatChunk};
+use crate::event::{AgentEvent, ChatChunk};
 use app::App;
 use crossterm::{
-    event::{self, Event, KeyCode, KeyModifiers},
+    event::{self as ct_event, Event, KeyCode, KeyModifiers},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
@@ -37,6 +37,19 @@ fn run() -> color_eyre::eyre::Result<()> {
 
     let mut app = App::new();
 
+    // Fetch app status at startup
+    {
+        let rt = tokio::runtime::Runtime::new()?;
+        match rt.block_on(api::fetch_status()) {
+            Ok(status) => {
+                app.status = Some(status);
+            }
+            Err(e) => {
+                eprintln!("Failed to fetch status: {e}");
+            }
+        }
+    }
+
     let (tx, rx) = mpsc::channel::<AgentEvent>();
     loop {
         while let Ok(event) = rx.try_recv() {
@@ -45,12 +58,16 @@ fn run() -> color_eyre::eyre::Result<()> {
         terminal.draw(|f| {
             ui::draw(f, &mut app);
         })?;
-        if event::poll(Duration::from_millis(16))? {
-            if let Event::Key(key) = event::read()? {
+        if ct_event::poll(Duration::from_millis(16))? {
+            if let Event::Key(key) = ct_event::read()? {
                 match key.code {
                     // ctrl+q 退出
                     KeyCode::Char('q') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                         break;
+                    }
+                    // ctrl+r 切换推理过程显示
+                    KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        app.toggle_reasoning();
                     }
 
                     KeyCode::Char(c) => {

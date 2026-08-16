@@ -1,6 +1,6 @@
 use ratatui::widgets::ScrollbarState;
 
-use crate::agent_event::{AgentEvent, ChatChunk};
+use crate::{api::AppStatus, event::{AgentEvent, ChatChunk}};
 
 pub struct App {
     pub input: String,
@@ -10,6 +10,10 @@ pub struct App {
     pub scroll: u16,
 
     pub scrollbar: ScrollbarState,
+
+    pub status: Option<AppStatus>,
+
+    pub show_reasoning: bool,
 }
 
 impl App {
@@ -19,7 +23,13 @@ impl App {
             blocks: Vec::new(),
             scroll: 0,
             scrollbar: ScrollbarState::default(),
+            status: None,
+            show_reasoning: true,
         }
+    }
+
+    pub fn toggle_reasoning(&mut self) {
+        self.show_reasoning = !self.show_reasoning;
     }
     pub fn insert_char(&mut self, c: char) {
         self.input.push(c);
@@ -44,7 +54,7 @@ impl App {
                 }
             },
 
-            AgentEvent::Reasoning(text) => match self.blocks.last_mut() {
+            AgentEvent::Reason(text) => match self.blocks.last_mut() {
                 Some(ChatChunk::Reasoning(s)) => {
                     s.push_str(&text);
                 }
@@ -52,19 +62,19 @@ impl App {
                     self.blocks.push(ChatChunk::Reasoning(text));
                 }
             },
-            AgentEvent::ToolStart { tool, args } => {
-                self.blocks.push(ChatChunk::ToolCall { tool, args });
+            AgentEvent::ToolCall { id: _, name, args } => {
+                self.blocks.push(ChatChunk::ToolCall { name, args });
             }
 
-            AgentEvent::ToolResult(result) => {
-                self.blocks.push(ChatChunk::ToolResult(result));
+            AgentEvent::ToolResult { name, content } => {
+                self.blocks.push(ChatChunk::ToolResult { name, content });
             }
 
             AgentEvent::Error(err) => {
                 self.blocks.push(ChatChunk::Error(err));
             }
 
-            AgentEvent::Finish => {}
+            AgentEvent::Stop => {}
         }
     }
 }

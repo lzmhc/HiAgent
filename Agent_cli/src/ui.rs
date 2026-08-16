@@ -1,7 +1,8 @@
-use crate::{agent_event::ChatChunk, app::App};
+use crate::{event::ChatChunk, app::App};
 use ratatui::layout::Rect;
 /// Helpers for drawing the TUI layout.
 use ratatui::widgets::Wrap;
+use unicode_width::UnicodeWidthChar;
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout},
@@ -21,7 +22,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         ])
         .split(frame.area());
 
-    draw_header(frame, layout[0]);
+    draw_header(frame, layout[0], app);
 
     draw_chat(frame, layout[1], app);
 
@@ -30,8 +31,16 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     draw_footer(frame, layout[3]);
 }
 
-fn draw_header(frame: &mut Frame, area: ratatui::layout::Rect) {
-    let header = Paragraph::new("🤖 AgentBot    Model: qwen3-235b    Workspace: ~/project")
+fn draw_header(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
+    let title = if let Some(status) = &app.status {
+        format!(
+            "🤖 {}  Model:{}  Reason:{}  Workspace:{}",
+            status.name, status.model, status.model_reasoning_effort, status.workspace
+        )
+    } else {
+        "🤖Loading...".to_string()
+    };
+    let header = Paragraph::new(title)
         .style(
             Style::default()
                 .fg(Color::Cyan)
@@ -45,19 +54,38 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
     let mut text = Text::default();
 
     for block in &app.blocks {
-        match block {
+        let rendered = match block {
             ChatChunk::User(msg) => {
                 text.lines.push(Line::from(vec![
                     Span::styled("👤 ", Style::default().fg(Color::Green)),
                     Span::raw(msg),
                 ]));
+                true
             }
 
             ChatChunk::Reasoning(msg) => {
-                text.lines.push(Line::from(vec![
-                    Span::styled("💭 ", Style::default().fg(Color::DarkGray)),
-                    Span::raw(msg),
-                ]));
+                if app.show_reasoning {
+                    text.lines.push(Line::from(vec![
+                        Span::styled("💭 ", Style::default().fg(Color::DarkGray)),
+                        Span::styled(
+                            msg.as_str(),
+                            Style::default()
+                                .fg(Color::DarkGray)
+                                .add_modifier(Modifier::ITALIC),
+                        ),
+                    ]));
+                } else {
+                    text.lines.push(Line::from(vec![
+                        Span::styled("💭 ", Style::default().fg(Color::DarkGray)),
+                        Span::styled(
+                            "推理过程已折叠",
+                            Style::default()
+                                .fg(Color::DarkGray)
+                                .add_modifier(Modifier::ITALIC),
+                        ),
+                    ]));
+                }
+                true
             }
 
             ChatChunk::Assistant(msg) => {
@@ -65,20 +93,20 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
                     Span::styled("🤖 ", Style::default().fg(Color::Cyan)),
                     Span::raw(msg),
                 ]));
+                true
             }
 
-            ChatChunk::ToolCall { tool, args } => {
+            ChatChunk::ToolCall { name, args } => {
                 text.lines.push(Line::from(vec![
                     Span::styled("🔧 ", Style::default().fg(Color::Yellow)),
-                    Span::raw(format!("{tool} {args}")),
+                    Span::raw(format!("{name}({args})")),
                 ]));
+                true
             }
 
-            ChatChunk::ToolResult(result) => {
-                text.lines.push(Line::from(vec![
-                    Span::styled("📄 ", Style::default().fg(Color::Magenta)),
-                    Span::raw(result),
-                ]));
+            ChatChunk::ToolResult { .. } => {
+                // 隐藏工具调用结果
+                false
             }
 
             ChatChunk::Error(err) => {
@@ -86,11 +114,14 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
                     Span::styled("❌ ", Style::default().fg(Color::Red)),
                     Span::raw(err),
                 ]));
+                true
             }
-        }
+        };
 
-        // 每个聊天块之间留一个空行
-        text.lines.push(Line::default());
+        // 每个聊天块之间留一个空行（仅在实际渲染内容后）
+        if rendered {
+            text.lines.push(Line::default());
+        }
     }
 
     let chat = Paragraph::new(text)
@@ -123,14 +154,16 @@ fn draw_input(frame: &mut Frame, area: Rect, app: &App) {
     let inner_area = block.inner(area);
     frame.render_widget(input, area);
 
-    let cursor_x = inner_area.x + app.input.len() as u16;
+    let cursor_x = inner_area.x + app.input.chars()
+        .map(|c| c.width().unwrap_or(0) as u16)
+        .sum::<u16>();
     let cursor_y = inner_area.y;
 
     frame.set_cursor_position((cursor_x, cursor_y));
 }
 
 fn draw_footer(frame: &mut Frame, area: ratatui::layout::Rect) {
-    let footer = Paragraph::new("Ctrl+Q Exit").style(Style::default().fg(Color::DarkGray));
+    let footer = Paragraph::new("Ctrl+R Reasoning  Ctrl+Q Exit").style(Style::default().fg(Color::DarkGray));
 
     frame.render_widget(footer, area);
 }

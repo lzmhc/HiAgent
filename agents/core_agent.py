@@ -5,8 +5,10 @@ from agents.skills import SkillManage
 from agents.tool_call_parser import ToolCallParser
 from agents.base_llm_adapter import BaseLLMAdapter, create_adapter
 from config.global_config import GlobalConfig
-from memory.message import SystemMessage, ErrorMessage, UserMessage, ToolStartMessage, AssistantMessage, ToolMessage, \
-    StopMessage
+from memory.message import (
+    SystemMessage, UserMessage, AssistantMessage,
+    ToolResultMessage, ToolResultEvent, ErrorEvent,
+)
 from tools.execute_shell.execute_shell import execute_shell
 from tools.search.brave_search import brave_search
 from tools.search.bocha_search import bocha_search
@@ -86,8 +88,9 @@ tools = [
     }
 ]
 
+
 class CoreAgent:
-    def __init__(self, config: GlobalConfig, messages : List[Dict]):
+    def __init__(self, config: GlobalConfig, messages: List[Dict]):
         super().__init__()
         self.config = config
         self.messages = messages
@@ -130,18 +133,16 @@ class CoreAgent:
                 parse_result = None
                 for event in parser.process_stream(stream):
                     if event["role"] == "content":
-                        # 文本内容
                         yield event
                     elif event["role"] == "reason":
-                        # 推理内容
                         yield event
                     elif event["role"] == "toolCall":
-                        # 工具调用结束
                         parse_result = event
                     elif event["role"] == "stop":
                         stop = True
                         break
-                if parse_result :
+
+                if parse_result:
                     func = parse_result.get("function", {})
                     tool_call_id = parse_result.get("id")
                     tool_name = func.get("name")
@@ -149,19 +150,35 @@ class CoreAgent:
                     try:
                         args = json.loads(tool_args_str) if tool_args_str else {}
                     except json.JSONDecodeError:
-                        yield ErrorMessage(f"工具参数解析失败：{tool_args_str}").to_dict()
+                        yield ErrorEvent(content=f"工具参数解析失败：{tool_args_str}").to_dict()
                         return
-                    yield ToolStartMessage(tool_name, tool_args_str).to_dict()
-                    try:
-                        tool_ret = available_tools[tool_name](** args)
-                    except Exception as e:
-                        yield ErrorMessage(f"工具执行失败：{e}").to_dict()
-                        return
+
                     yield parse_result
-                    self.messages.append(AssistantMessage(None, [parse_result]).to_dict())
-                    self.messages.append(ToolMessage(json.dumps(tool_ret, ensure_ascii=False), tool_call_id).to_dict())
+
+                    try:
+                        tool_ret = available_tools[tool_name](**args)
+                    except Exception as e:
+                        yield ErrorEvent(content=f"工具执行失败：{e}").to_dict()
+                        return
+
+                    tool_ret_str = json.dumps(tool_ret, ensure_ascii=False)
+
+                    yield ToolResultEvent(
+                        tool_name=tool_name,
+                        content=tool_ret_str,
+                    ).to_dict()
+
+                    self.messages.append(
+                        AssistantMessage(tool_calls=[parse_result]).to_dict()
+                    )
+                    self.messages.append(
+                        ToolResultMessage(
+                            content=tool_ret_str,
+                            tool_call_id=tool_call_id,
+                        ).to_dict()
+                    )
                     continue
                 if stop:
                     break
         except Exception as e:
-            yield ErrorMessage(str(e)).to_dict()
+            yield ErrorEvent(content=str(e)).to_dict()

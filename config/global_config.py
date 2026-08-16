@@ -34,6 +34,9 @@ class PiConfig(BaseConfig):
         with open(self.auth) as f:
             return json.load(f)
 
+    def read_config(self):
+        return self.read_settings()
+
     def read_settings(self):
         with open(self.settings) as f:
             return json.load(f)
@@ -94,6 +97,9 @@ class CodexConfig(BaseConfig):
         with open(self.config, "rb") as f:
             return tomllib.load(f)
 
+    def read_settings(self):
+        return self.read_settings()
+
     def get_provider(self):
         return self.read_config()["model_provider"]
 
@@ -120,25 +126,61 @@ class CodexConfig(BaseConfig):
     def get_temperature(self):
         return self.temperature
 
+class HiConfig(BaseConfig):
+    def __init__(self):
+        super().__init__()
+        self.path = Path(__file__).parent
+
+    def read_trust(self):
+        pass
+
+    def read_auth(self):
+        pass
+
+    def read_config(self):
+        with open(self.path / "config.json") as f:
+            return json.load(f)
+
+    def read_settings(self):
+        return self.read_config()
+
+    def get_provider(self):
+        return self.read_settings()["model_provider"]
+
+    def get_base_url(self):
+        return self.read_settings()["base_url"]
+
+    def get_model(self):
+        return self.read_settings()["model"]
+
+    def get_think_level(self):
+        return self.read_settings()["model_reasoning_effort"]
+
+    def get_api_key(self):
+        return self.read_settings()["api_key"]
+
+    def get_timeout(self):
+        return self.timeout
+
+    def get_max_tokens(self):
+        return self.max_tokens
+
+    def get_temperature(self):
+        return self.temperature
+
 class GlobalConfig:
     def __init__(self):
         base_dir = Path(__file__).parent
         with open(base_dir / "config.json") as f:
             self.json_config = json.load(f)
         self.Provider = None
-        self.config = self.get_config()
+        self.config = HiConfig()
         self.config.set_timeout(self.json_config.get("timeout", 60))
         self.config.set_max_tokens(self.json_config.get("max_tokens", 2048))
         self.config.set_temperature(self.json_config.get("temperature", 0.7))
 
     def get_config(self):
-        agent_type = self.json_config["agent_type"]
-        if agent_type == "pi":
-            return PiConfig()
-        if agent_type == "codex":
-            return CodexConfig()
-        return None
-
+        return self.config
 
 if __name__ == "__main__":
     config = GlobalConfig()
