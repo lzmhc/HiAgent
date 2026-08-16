@@ -21,17 +21,6 @@ Copy the example config and fill in your API keys:
 cp config/config.json.example config/config.json
 ```
 
-Config options:
-
-| Field | Description |
-|-------|-------------|
-| `agent_type` | Config type, supports `codex` or `pi` |
-| `timeout` | API call timeout in seconds |
-| `max_tokens` | Maximum tokens to generate |
-| `temperature` | Generation temperature, between 0-2 |
-| `bocha_search` | Bocha search API key |
-| `brave_search` | Brave search API key |
-
 ### 3. Start Service
 
 ```bash
