@@ -1,5 +1,6 @@
 import json
 from typing import List, Dict
+from pathlib import Path
 
 from agents.skills import SkillManage
 from agents.tool_call_parser import ToolCallParser
@@ -18,6 +19,25 @@ available_tools = {
     "brave_search": brave_search,
     "execute_shell": execute_shell
 }
+
+
+def load_agents_md() -> str:
+    search_paths = [
+        Path(__file__).parent.parent / "AGENTS.md",  # 项目根目录
+        Path(__file__).parent.parent / "CLAUDE.md",  # 项目根目录
+    ]
+    
+    agents_content = []
+    for path in search_paths:
+        if path.exists():
+            try:
+                content = path.read_text(encoding='utf-8')
+                if content.strip():
+                    agents_content.append(f"# 来源: {path}\n\n{content}")
+            except Exception as e:
+                print(f"读取 {path} 失败: {e}")
+    
+    return "\n\n---\n\n".join(agents_content) if agents_content else ""
 tools = [
     {
         "type": "function",
@@ -103,6 +123,10 @@ class CoreAgent:
             max_tokens=self.config.get_config().get_max_tokens(),
         )
         self.skill_manage = SkillManage(self.config)
+
+        agents_md_content = load_agents_md()
+        if agents_md_content:
+            self.messages.insert(0, SystemMessage(agents_md_content).to_dict())
 
     def run(self):
         user_msg = self.messages[-1]

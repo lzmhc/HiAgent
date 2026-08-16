@@ -12,7 +12,6 @@ use crossterm::{
 };
 use ratatui::{Terminal, backend::CrosstermBackend};
 use std::{io, sync::mpsc, time::Duration};
-
 fn main() {
     if let Err(err) = run() {
         let _ = disable_raw_mode();
@@ -47,6 +46,14 @@ fn run() -> color_eyre::eyre::Result<()> {
                 eprintln!("Failed to fetch status: {e}");
             }
         }
+        match rt.block_on(api::start_new_session()) {
+            Ok(session_id) => {
+                app.current_session_id = session_id;
+            }
+            Err(e) => {
+                eprintln!("Failed to fetch session_id: {e}");
+            }
+        }
     }
 
     let (tx, rx) = mpsc::channel::<AgentEvent>();
@@ -79,6 +86,8 @@ fn run() -> color_eyre::eyre::Result<()> {
 
                     KeyCode::Enter => {
                         let prompt = app.input.clone();
+                        let session_id = app.current_session_id.clone();
+                        
                         if prompt.trim().is_empty() {
                             continue;
                         }
@@ -87,7 +96,7 @@ fn run() -> color_eyre::eyre::Result<()> {
                         std::thread::spawn(move || {
                             let rt = tokio::runtime::Runtime::new().unwrap();
                             rt.block_on(async {
-                                if let Err(e) = api::chat(prompt, tx).await {
+                                if let Err(e) = api::chat(prompt, session_id, tx).await {
                                     eprintln!("{e}");
                                 }
                             });

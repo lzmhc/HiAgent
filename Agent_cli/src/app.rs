@@ -3,6 +3,8 @@ use ratatui::widgets::ScrollbarState;
 use crate::{api::AppStatus, event::{AgentEvent, ChatChunk}};
 
 pub struct App {
+    pub current_session_id: String,
+
     pub input: String,
 
     pub blocks: Vec<ChatChunk>,
@@ -19,6 +21,7 @@ pub struct App {
 impl App {
     pub fn new() -> Self {
         Self {
+            current_session_id: String::new(),
             input: String::new(),
             blocks: Vec::new(),
             scroll: 0,

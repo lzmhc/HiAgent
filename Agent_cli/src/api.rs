@@ -1,6 +1,6 @@
 use std::{env, sync::mpsc::Sender};
 
-use crate::event::AgentEvent;
+use crate::{app::App, event::AgentEvent};
 use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
 use reqwest::Client;
@@ -37,6 +37,7 @@ fn api_url() -> String {
 
 pub async fn chat(
     message: String,
+    session_id: String,
     tx: Sender<AgentEvent>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
@@ -44,7 +45,8 @@ pub async fn chat(
     let response = client
         .post(format!("{}/chat", api_url()))
         .json(&json!({
-            "messages": message
+            "messages": message,
+            "session_id": session_id
         }))
         .send()
         .await?;
@@ -96,4 +98,15 @@ pub async fn fetch_status() -> Result<AppStatus, Box<dyn std::error::Error>> {
     let status_url = format!("{}/status", api_url());
     let status = reqwest::get(status_url).await?.json::<AppStatus>().await?;
     Ok(status)
+}
+
+pub async fn start_new_session() -> Result<String, Box<dyn std::error::Error>> {
+    let session_url = format!("{}/session/new", api_url());
+    let response = reqwest::Client::new()
+        .post(session_url)
+        .send()
+        .await?;
+    let session_data: serde_json::Value = response.json().await?;
+    let session_id = session_data["session_id"].as_str().unwrap().to_string();
+    Ok(session_id)
 }

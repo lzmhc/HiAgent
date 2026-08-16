@@ -1,4 +1,4 @@
-from tools.shell.shell_manager import manager
+from tools.execute_shell.shell_manager import manager
 
 
 def execute_shell(command: str):

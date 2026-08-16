@@ -1,4 +1,4 @@
-from tools.shell.shell_session import ShellSession
+from tools.execute_shell.shell_session import ShellSession
 
 class ShellManager:
 
