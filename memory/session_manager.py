@@ -46,7 +46,6 @@ class SessionManager:
             first_message = self._read_first_message(file)
             sessions.append({
                 "session_id": session_id,
-                "created_at": first_message.get("timestamp") if first_message else None,
                 "first_message": first_message.get("content", "")[:50] if first_message else ""
             })
         return sessions

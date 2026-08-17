@@ -1,7 +1,8 @@
 use crate::{event::ChatChunk, app::App};
-use ratatui::layout::Rect;
+
+use ratatui::{layout::Rect, widgets::ListItem};
 /// Helpers for drawing the TUI layout.
-use ratatui::widgets::Wrap;
+use ratatui::widgets::{HighlightSpacing, List, Wrap};
 use unicode_width::UnicodeWidthChar;
 use ratatui::{
     Frame,
@@ -29,16 +30,20 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     draw_input(frame, layout[2], app);
 
     draw_footer(frame, layout[3]);
+
+    if app.show_session_popup {
+        draw_session_popup(frame, frame.area(), app)
+    }
 }
 
 fn draw_header(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
     let title = if let Some(status) = &app.status {
         format!(
-            "🤖 {}  Model:{}  Reason:{}  Workspace:{}",
+            "{}  Model:{}  Reason:{}  Workspace:{}",
             status.name, status.model, status.model_reasoning_effort, status.workspace
         )
     } else {
-        "🤖Loading...".to_string()
+        "Loading...".to_string()
     };
     let header = Paragraph::new(title)
         .style(
@@ -57,7 +62,7 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
         let rendered = match block {
             ChatChunk::User(msg) => {
                 text.lines.push(Line::from(vec![
-                    Span::styled("👤 ", Style::default().fg(Color::Green)),
+                    Span::styled("- ", Style::default().fg(Color::Cyan)),
                     Span::raw(msg),
                 ]));
                 true
@@ -66,7 +71,6 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
             ChatChunk::Reasoning(msg) => {
                 if app.show_reasoning {
                     text.lines.push(Line::from(vec![
-                        Span::styled("💭 ", Style::default().fg(Color::DarkGray)),
                         Span::styled(
                             msg.as_str(),
                             Style::default()
@@ -76,7 +80,6 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
                     ]));
                 } else {
                     text.lines.push(Line::from(vec![
-                        Span::styled("💭 ", Style::default().fg(Color::DarkGray)),
                         Span::styled(
                             "推理过程已折叠",
                             Style::default()
@@ -92,11 +95,11 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
                 let lines: Vec<&str> = msg.lines().collect();
                 if lines.is_empty() {
                     text.lines.push(Line::from(vec![
-                        Span::styled("🤖 ", Style::default().fg(Color::Cyan)),
+                        Span::styled("> ", Style::default().fg(Color::Cyan)),
                     ]));
                 } else {
                     text.lines.push(Line::from(vec![
-                        Span::styled("🤖 ", Style::default().fg(Color::Cyan)),
+                        Span::styled("> ", Style::default().fg(Color::Cyan)),
                         Span::raw(lines[0]),
                     ]));
                     for line in &lines[1..] {
@@ -111,8 +114,7 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
 
             ChatChunk::ToolCall { name, args } => {
                 text.lines.push(Line::from(vec![
-                    Span::styled("🔧 ", Style::default().fg(Color::Yellow)),
-                    Span::raw(format!("{name}({args})")),
+                    Span::styled(format!("{name}({args})"), Style::default().fg(Color::Yellow))
                 ]));
                 true
             }
@@ -123,7 +125,6 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
 
             ChatChunk::Error(err) => {
                 text.lines.push(Line::from(vec![
-                    Span::styled("❌ ", Style::default().fg(Color::Red)),
                     Span::raw(err),
                 ]));
                 true
@@ -148,7 +149,7 @@ fn draw_input(frame: &mut Frame, area: Rect, app: &App) {
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(Color::Cyan))
-        .title(" 输入 ")
+        .title(" Input ")
         .title_style(
             Style::default()
                 .fg(Color::Yellow)
@@ -174,7 +175,41 @@ fn draw_input(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn draw_footer(frame: &mut Frame, area: ratatui::layout::Rect) {
-    let footer = Paragraph::new("Ctrl+R Reasoning  Ctrl+Q Exit").style(Style::default().fg(Color::DarkGray));
+    let footer = Paragraph::new("Ctrl+L:Session Ctrl+R:Reasoning  Ctrl+Q:Exit").style(Style::default().fg(Color::DarkGray));
 
     frame.render_widget(footer, area);
+}
+
+fn draw_session_popup(frame: &mut Frame, _area: Rect, app: &mut App) {
+    let area = frame.area();
+    let popup_area = area.centered(
+        Constraint::Percentage(60), 
+        Constraint::Percentage(50)
+    );
+    //frame.render_widget(Clear, popup_area);
+
+    let items: Vec<ListItem> = app
+        .sessions
+        .iter()
+        .map(|s| {
+            let display = if s.first_message.is_empty() {                                                                                                         
+                   format!("{}  (空会话)", &s.session_id[..8])                                                                                                       
+               } else {                                                                                                                                              
+                   format!("{}  {}", &s.session_id[..8], s.first_message.chars().take(40).collect::<String>())                                                       
+               };                                                                                                                                                    
+               ListItem::new(Line::from(display))    
+        })
+        .collect();
+    let list = List::new(items)                                                                                                                                   
+           .block(                                                                                                                                                   
+               Block::bordered()                                                                                                                                     
+                   .title(" 会话列表 ")                                                                                                                           
+                   .title_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))                                                                       
+                   .border_style(Style::default().fg(Color::Cyan)),                                                                                                  
+           )                                                                                                                                                         
+           .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))                                                                       
+           .highlight_symbol(" ▸ ")                                                                                                                                  
+           .highlight_spacing(HighlightSpacing::Always);                                                                                                             
+                                                                                                                                                                     
+       frame.render_stateful_widget(list, popup_area, &mut app.session_list_state);
 }

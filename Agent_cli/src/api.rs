@@ -1,6 +1,6 @@
-use std::{env, sync::mpsc::Sender};
+use std::sync::mpsc::Sender;
 
-use crate::{app::App, event::AgentEvent};
+use crate::event::{AgentEvent, ChatChunk};
 use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
 use reqwest::Client;
@@ -29,6 +29,12 @@ struct SseEvent {
 struct FunctionData {
     name: String,
     arguments: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SessionInfo {
+    pub session_id: String,
+    pub first_message: String,
 }
 
 fn api_url() -> String {
@@ -109,4 +115,27 @@ pub async fn start_new_session() -> Result<String, Box<dyn std::error::Error>> {
     let session_data: serde_json::Value = response.json().await?;
     let session_id = session_data["session_id"].as_str().unwrap().to_string();
     Ok(session_id)
+}
+
+pub async fn fetch_sessions() -> Result<Vec<SessionInfo>, Box<dyn std::error::Error>> {
+    let url = format!("{}/sessions", api_url());
+    let response = reqwest::get(url).await?.json::<serde_json::Value>().await?;
+    let sessions: Vec<SessionInfo> = serde_json::from_value(response["sessions"].clone())?;
+    Ok(sessions)
+}
+
+pub async fn fetch_session_history(session_id: String) -> Result<Vec<ChatChunk>, Box<dyn std::error::Error>> {
+    let url = format!("{}/session/{}/history", api_url(), session_id);
+    let response = reqwest::get(url).await?.json::<serde_json::Value>().await?;
+    let history: Vec<serde_json::Value> = serde_json::from_value(response["history"].clone())?;
+    let chunks: Vec<ChatChunk> = history.iter().filter_map(|msg| {                                          
+           let role = msg["role"].as_str()?;                                                                   
+           let content = msg["content"].as_str().unwrap_or("").to_string();                                    
+           match role {                                                                                        
+               "user" => Some(ChatChunk::User(content)),                                                       
+               "assistant" => Some(ChatChunk::Assistant(content)),                                             
+               _ => None,                                                                                      
+           }                                                                                                   
+       }).collect();                                                                                           
+    Ok(chunks)
 }

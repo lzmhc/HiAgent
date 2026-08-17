@@ -75,7 +75,66 @@ fn run() -> color_eyre::eyre::Result<()> {
                     KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                         app.toggle_reasoning();
                     }
+                    // ctrl+l 会话列表切换
+                    KeyCode::Char('l') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        if !app.show_session_popup {
+                            // 显示会话列表时，先获取会话列表
+                            let rt = tokio::runtime::Runtime::new()?;
+                            match rt.block_on(api::fetch_sessions()) {
+                                Ok(sessions) => {
+                                    app.update_sessions(sessions);
+                                }
+                                Err(e) => {
+                                    eprintln!("Failed to fetch sessions: {e}");
+                                }
+                            }
+                        }
+                        app.toggle_session();
+                    }
 
+                    // 当会话列表显示时，处理会话列表的键盘导航
+                    KeyCode::Up if app.show_session_popup => {
+                        app.session_list_prev();
+                    }
+
+                    KeyCode::Down if app.show_session_popup => {
+                        app.session_list_next();
+                    }
+
+                    KeyCode::Enter if app.show_session_popup => {
+                        if let Some(session_id) = app.select_current_session() {
+                            // 加载选中会话的历史记录
+                            let tx = tx.clone();
+                            let session_id_clone = session_id.clone();
+                            std::thread::spawn(move || {
+                                let rt = tokio::runtime::Runtime::new().unwrap();
+                                rt.block_on(async {
+                                    match api::fetch_session_history(session_id_clone).await {
+                                        Ok(history) => {
+                                            // 发送历史记录事件
+                                            for chunk in history {
+                                                let event = match chunk {
+                                                    ChatChunk::User(msg) => AgentEvent::Content(msg),
+                                                    ChatChunk::Assistant(msg) => AgentEvent::Content(msg),
+                                                    _ => continue,
+                                                };
+                                                let _ = tx.send(event);
+                                            }
+                                        }
+                                        Err(e) => {
+                                            eprintln!("Failed to fetch session history: {e}");
+                                        }
+                                    }
+                                });
+                            });
+                        }
+                    }
+
+                    KeyCode::Esc if app.show_session_popup => {
+                        app.close_session_popup();
+                    }
+
+                    // 当会话列表不显示时，处理普通输入
                     KeyCode::Char(c) => {
                         app.insert_char(c);
                     }
