@@ -9,11 +9,6 @@
 
 - tools/search : web网络搜索
 
-##### skills
-
-- skills/tmux : 终端复用规范
-  - 需要可视化打开默认终端程序,执行命令类的操作需要让用户可见
-  - 在调用tools/execute_shell工具时,必须先创建tmux会话
 
 ##### system-env(read-only)
 
