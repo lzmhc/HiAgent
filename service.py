@@ -43,23 +43,54 @@ async def chat(request: Request):
         messages=history + messages
     )
     def event_stream():
-        messages_list = {}
+        assistant_content = ""
+        pending_tool_call = None
         for event in agent.run():
             role = event["role"]
             content = event.get("content")
-            if role not in messages_list.keys():
-                messages_list[role] = ""
-            elif content is not None:
-                messages_list[role] += content
+
+            if role in {"toolCall", "toolResult", "error", "stop"}:
+                session_manager.append_event(session_id, event)
+
+            if role == "content" and content is not None:
+                assistant_content += content
+            elif role == "toolCall":
+                pending_tool_call = event
+                assistant_content = ""
+            elif role == "toolResult":
+                if pending_tool_call and pending_tool_call.get("id") == event.get("id"):
+                    session_manager.append_message(
+                        session_id,
+                        {
+                            "role": "assistant",
+                            "tool_calls": [pending_tool_call],
+                        },
+                    )
+                    session_manager.append_message(
+                        session_id,
+                        {
+                            "role": "tool",
+                            "tool_call_id": event.get("id", ""),
+                            "content": content or "",
+                        },
+                    )
+                    pending_tool_call = None
+            elif role == "stop":
+                if assistant_content:
+                    session_manager.append_message(
+                        session_id,
+                        {
+                            "role": "assistant",
+                            "content": assistant_content,
+                        },
+                    )
+                assistant_content = ""
+                pending_tool_call = None
+
             yield (
-                f"event: {event["role"]}\n"
-                f"data: {json.dumps(event,ensure_ascii=False)}\n\n"
+                f"event: {role}\n"
+                f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
             )
-        for role in messages_list.keys():
-            messages_role = role
-            messages_data = messages_list[role]
-            if messages_role == "content":
-                session_manager.append_message(session_id, {"role": "assistant", "content": messages_data})
 
     return StreamingResponse(
         event_stream(),

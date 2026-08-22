@@ -20,13 +20,25 @@ class SessionManager:
     def get_session_file(self, session_id: str) -> Path:
         return self.sessions_dir / f"{session_id}.jsonl"
 
-    def append_message(self, session_id: str, message: Dict):
+    def append_record(self, session_id: str, record: Dict, kind: Optional[str] = None):
+        record = dict(record)
         session_file = self.get_session_file(session_id)
         if not session_file.exists():
             self.create_session(session_id)
-        message["timestamp"] = datetime.now().timestamp()
+        if kind is not None:
+            record.setdefault("kind", kind)
+        else:
+            record.setdefault("kind", "message")
+        record["session_id"] = session_id
+        record["timestamp"] = datetime.now().timestamp()
         with open(session_file, "a", encoding="utf-8") as f:
-            f.write(json.dumps(message, ensure_ascii=False) + "\n")
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    def append_message(self, session_id: str, message: Dict):
+        self.append_record(session_id, message, kind="message")
+
+    def append_event(self, session_id: str, event: Dict):
+        self.append_record(session_id, event, kind="event")
 
     def load_history(self, session_id: str, limit: int = 50) -> List[Dict]:
         session_file = self.get_session_file(session_id)
@@ -36,7 +48,9 @@ class SessionManager:
         with open(session_file, "r", encoding="utf-8") as f:
             for line in f:
                 if line.strip():
-                    messages.append(json.loads(line))
+                    record = json.loads(line)
+                    if record.get("kind", "message") == "message":
+                        messages.append(record)
         return messages[-limit:]
 
     def list_sessions(self) -> List[Dict]:
@@ -53,9 +67,12 @@ class SessionManager:
     def _read_first_message(self, file_path: Path) -> Optional[Dict]:
         try:
             with open(file_path, "r", encoding="utf-8") as f:
-                first_line = f.readline()
-                if first_line.strip():
-                    return json.loads(first_line)
+                for line in f:
+                    if not line.strip():
+                        continue
+                    record = json.loads(line)
+                    if record.get("kind", "message") == "message":
+                        return record
         except:
             pass
         return None

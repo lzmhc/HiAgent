@@ -188,6 +188,7 @@ class CoreAgent:
                     tool_ret_str = json.dumps(tool_ret, ensure_ascii=False)
 
                     yield ToolResultEvent(
+                        tool_call_id=tool_call_id,
                         tool_name=tool_name,
                         content=tool_ret_str,
                     ).to_dict()

@@ -98,6 +98,7 @@ class ToolCallEvent:
 
 @dataclass
 class ToolResultEvent:
+    tool_call_id: str
     tool_name: str
     content: str
     role: str = field(default="toolResult", init=False)
@@ -105,6 +106,7 @@ class ToolResultEvent:
     def to_dict(self) -> Dict[str, str]:
         return {
             "role": self.role,
+            "id": self.tool_call_id,
             "tool_name": self.tool_name,
             "content": self.content,
         }
