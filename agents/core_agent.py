@@ -10,7 +10,7 @@ from memory.message import (
     SystemMessage, UserMessage, AssistantMessage,
     ToolResultMessage, ToolResultEvent, ErrorEvent,
 )
-from tools.execute_shell.execute_shell import execute_shell
+from tools.shell.execute_shell import execute_shell
 from tools.search.brave_search import brave_search
 from tools.search.bocha_search import bocha_search
 
@@ -19,7 +19,6 @@ available_tools = {
     "brave_search": brave_search,
     "execute_shell": execute_shell
 }
-
 
 def load_agents_md() -> str:
     search_paths = [
