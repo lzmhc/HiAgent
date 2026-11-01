@@ -40,7 +40,7 @@ async def chat(request: Request):
     session_manager.append_message(session_id, messages[0])
     agent = CoreAgent(
         config,
-        messages=history + messages
+        messages= messages
     )
     def event_stream():
         assistant_content = ""

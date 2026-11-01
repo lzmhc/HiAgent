@@ -12,20 +12,20 @@ class ToolCallParser:
         self.tool_call_id = None
         self.tool_name = ""
         self.tool_args = ""
-
+        self.tool_args_list = []
         self.xml_mode = False
         self.xml_buffer = ""
 
     def process_stream(self, stream: Generator):
+        tool_args_str = ""
         for chunk in stream:
             if not getattr(chunk, "choices", None):
                 continue
-            print(chunk.choices[0])
             choice = chunk.choices[0]
             delta = getattr(choice, "delta", None)
             if not delta:
                 continue
-
+            print(delta)
             # 推理内容
             reasoning_content = getattr(delta, "reasoning_content", None)
             if reasoning_content:
@@ -53,6 +53,7 @@ class ToolCallParser:
                 continue
 
             if hasattr(delta, "tool_calls") and delta.tool_calls:
+                self.tool_args_list = []
                 for tc in delta.tool_calls:
                     if getattr(tc, "id", None):
                         self.tool_call_id = tc.id
@@ -62,12 +63,17 @@ class ToolCallParser:
                             self.tool_name = func.name
                         if getattr(func, "arguments", None):
                             self.tool_args += func.arguments
+                            tool_args_str += func.arguments
+                            if func.arguments == "}" :
+                                self.tool_args_list.append(tool_args_str)
+                                tool_args_str = ""
 
             if getattr(choice, "finish_reason", None) == "tool_calls":
                 yield ToolCallEvent(
                     tool_call_id=self.tool_call_id,
                     tool_name=self.tool_name,
                     tool_args=self.tool_args,
+                    tool_args_list= self.tool_args_list,
                 ).to_dict()
 
             if getattr(choice, "finish_reason", None) == "stop":
