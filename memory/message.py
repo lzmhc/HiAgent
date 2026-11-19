@@ -81,7 +81,6 @@ class ToolCallEvent:
     tool_call_id: str
     tool_name: str
     tool_args: str
-    tool_args_list: List[str]
     type: str = "function"
     role: str = field(default="toolCall", init=False)
 
@@ -92,8 +91,7 @@ class ToolCallEvent:
             "type": self.type,
             "function": {
                 "name": self.tool_name,
-                "arguments": self.tool_args,
-                "arguments_list": self.tool_args_list,
+                "arguments": self.tool_args
             },
         }
 
@@ -117,7 +115,6 @@ class ToolResultEvent:
 @dataclass
 class StopEvent:
     role: str = field(default="stop", init=False)
-
     def to_dict(self) -> Dict[str, str]:
         return {"role": self.role}
 

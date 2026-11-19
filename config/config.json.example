@@ -1,16 +1,11 @@
 {
-  "model_provider": "xxx",
-  "model": "xxx",
-  "base_url": "xxxx",
-  "model_reasoning_effort": "medium",
-  "api_key": "xxxxxxxx",
-  "skills": {},
+  "defaultProvider": "pi",
   "timeout": 60,
   "max_tokens": 2048,
   "temperature": 0.7,
   "qqbot": {
     "appid": "xxxx",
-    "secret": "xxxxx"
+    "secret": "xxxx"
   },
   "bocha_api": "xxxx",
   "brave_api": "xxxx"

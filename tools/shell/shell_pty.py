@@ -75,13 +75,13 @@ class ShellManager:
             }
 
 shell_manager = ShellManager()
-def execute_shell(command: str):
+def execute_pty(command: str):
     return shell_manager.execute_shell(command)
+
 if __name__ == "__main__":
-    command = """{"command": "ls -la ~/.config/waybar/"}{"command": "ps aux | grep -i waybar | grep -v grep"}"""
-    print(command.split("}"))
-    # shellManager = ShellManager()
-    # print(shellManager.execute_shell("ls"))
-    # print(shellManager.execute_shell("cd ~"))
-    # print(shellManager.execute_shell("pwd"))
-    # print(shellManager.execute_shell("ls"))
+    # print(execute_pty("""echo OK"""))
+    print(execute_pty("tmux ls"))
+    # print(shell_manager.execute_shell("ls"))
+    # print(shell_manager.execute_shell("cd ~"))
+    # print(shell_manager.execute_shell("pwd"))
+    # print(shell_manager.execute_shell("ls"))

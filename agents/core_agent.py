@@ -10,20 +10,20 @@ from memory.message import (
     SystemMessage, UserMessage, AssistantMessage,
     ToolResultMessage, ToolResultEvent, ErrorEvent,
 )
-from tools.shell.execute_shell import execute_shell
+from tools.shell.shell_pty import execute_pty
 from tools.search.brave_search import brave_search
 from tools.search.bocha_search import bocha_search
 
 available_tools = {
     "bocha_search": bocha_search,
     "brave_search": brave_search,
-    "execute_shell": execute_shell
+    "execute_pty": execute_pty
 }
 
 def load_agents_md() -> str:
     search_paths = [
-        Path(__file__).parent.parent / "AGENTS.md",  # 项目根目录
-        Path(__file__).parent.parent / "CLAUDE.md",  # 项目根目录
+        Path(__file__).parent.parent / "AGENTS.md",
+        Path(__file__).parent.parent / "CLAUDE.md",
     ]
     
     agents_content = []
@@ -85,19 +85,16 @@ tools = [
     {
         "type": "function",
         "function": {
-            "name": "execute_shell",
+            "name": "execute_pty",
             "description": (
-                "执行Linux Shell命令并返回输出结果。"
+                "Execute a shell command or a multiline shell scriptin a PTY."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "command": {
                         "type": "string",
-                        "description": (
-                            "需要执行的Shell命令，例如 "
-                            "'ls -la'、'pwd'、'ps aux'、'df -h'"
-                        )
+                        "description": "The shell command or multiline script to execute. "
                     }
                 },
                 "required": ["command"]
@@ -148,8 +145,7 @@ class CoreAgent:
             )
             self.messages.insert(0, SystemMessage(prompt).to_dict())
         try:
-            stop = True
-            while stop:
+            while True:
                 parser = ToolCallParser()
                 stream = self.adapter.stream_invoke(messages=self.messages, tools=tools)
                 parse_result = None
@@ -159,46 +155,45 @@ class CoreAgent:
                     elif event["role"] == "reason":
                         yield event
                     elif event["role"] == "toolCall":
+                        print("toolCall")
                         parse_result = event
                     elif event["role"] == "stop":
-                        stop = False
-                        break
+                        print("stop")
+                        return
 
                 if parse_result:
                     func = parse_result.get("function", {})
                     tool_call_id = parse_result.get("id")
                     tool_name = func.get("name")
-                    tool_args = func.get("arguments_list")
-                    for tool_args in tool_args:
-                        try:
-                            args = json.loads(tool_args) if tool_args else {}
-                        except json.JSONDecodeError:
-                            yield ErrorEvent(content=f"工具参数解析失败：{tool_args}").to_dict()
+                    tool_args = func.get("arguments")
+                    try:
+                        args = json.loads(tool_args) if tool_args else {}
+                    except json.JSONDecodeError:
+                        yield ErrorEvent(content=f"工具参数解析失败：{tool_args}").to_dict()
 
-                        yield parse_result
+                    yield parse_result
 
-                        try:
-                            tool_ret = available_tools[tool_name](**args)
-                        except Exception as e:
-                            yield ErrorEvent(content=f"工具执行失败：{e}").to_dict()
+                    try:
+                        tool_ret = available_tools[tool_name](**args)
+                    except Exception as e:
+                        yield ErrorEvent(content=f"工具执行失败：{e}").to_dict()
 
-                        tool_ret_str = json.dumps(tool_ret, ensure_ascii=False)
+                    tool_ret_str = json.dumps(tool_ret, ensure_ascii=False)
 
-                        yield ToolResultEvent(
-                            tool_call_id=tool_call_id,
-                            tool_name=tool_name,
+                    yield ToolResultEvent(
+                        tool_call_id=tool_call_id,
+                        tool_name=tool_name,
+                        content=tool_ret_str,
+                    ).to_dict()
+
+                    self.messages.append(
+                        AssistantMessage(tool_calls=[parse_result]).to_dict()
+                    )
+                    self.messages.append(
+                        ToolResultMessage(
                             content=tool_ret_str,
+                            tool_call_id=tool_call_id,
                         ).to_dict()
-
-                        self.messages.append(
-                            AssistantMessage(tool_calls=[parse_result]).to_dict()
-                        )
-                        self.messages.append(
-                            ToolResultMessage(
-                                content=tool_ret_str,
-                                tool_call_id=tool_call_id,
-                            ).to_dict()
-                        )
-                continue
+                    )
         except Exception as e:
             yield ErrorEvent(content=str(e)).to_dict()

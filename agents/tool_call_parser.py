@@ -17,15 +17,15 @@ class ToolCallParser:
         self.xml_buffer = ""
 
     def process_stream(self, stream: Generator):
-        tool_args_str = ""
         for chunk in stream:
+            print(chunk)
             if not getattr(chunk, "choices", None):
                 continue
             choice = chunk.choices[0]
             delta = getattr(choice, "delta", None)
             if not delta:
                 continue
-            print(delta)
+            # print(delta)
             # 推理内容
             reasoning_content = getattr(delta, "reasoning_content", None)
             if reasoning_content:
@@ -36,18 +36,6 @@ class ToolCallParser:
             # 普通文本
             content = getattr(delta, "content", None)
             if content:
-                if self.xml_mode:
-                    self.xml_buffer += content
-                    if "</tool_call>" in self.xml_buffer:
-                        self.need_call_tool = True
-                        self.xml_mode = False
-                    continue
-
-                if "<tool_call>" in content:
-                    self.xml_mode = True
-                    self.xml_buffer += content
-                    continue
-
                 self.normal_text_queue.append(content)
                 yield ContentEvent(content=content).to_dict()
                 continue
@@ -63,18 +51,14 @@ class ToolCallParser:
                             self.tool_name = func.name
                         if getattr(func, "arguments", None):
                             self.tool_args += func.arguments
-                            tool_args_str += func.arguments
-                            if func.arguments == "}" :
-                                self.tool_args_list.append(tool_args_str)
-                                tool_args_str = ""
 
             if getattr(choice, "finish_reason", None) == "tool_calls":
                 yield ToolCallEvent(
                     tool_call_id=self.tool_call_id,
                     tool_name=self.tool_name,
-                    tool_args=self.tool_args,
-                    tool_args_list= self.tool_args_list,
+                    tool_args=self.tool_args
                 ).to_dict()
 
             if getattr(choice, "finish_reason", None) == "stop":
                 yield StopEvent().to_dict()
+

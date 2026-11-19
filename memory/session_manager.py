@@ -4,15 +4,17 @@ from datetime import datetime
 from typing import List, Dict, Optional
 
 class SessionManager:
-    def __init__(self, base_dir: str = "~/.hiagent"):
+    def __init__(self, base_dir: str = "~/.agents"):
         self.base_dir = Path(base_dir).expanduser()
         self.sessions_dir = self.base_dir / "sessions"
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
 
     def create_session(self, session_id: str) -> str:
         if session_id is None:
-            import uuid
-            session_id = str(uuid.uuid4())
+            from datetime import datetime
+            now = datetime.now()
+            session_id = now.strftime("%Y%m%d%H%M%S")
+        print(self.sessions_dir)
         session_file = self.sessions_dir / f"{session_id}.jsonl"
         session_file.touch()
         return session_id

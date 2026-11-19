@@ -15,14 +15,14 @@ from pathlib import Path
 from memory.session_manager import SessionManager
 
 app = FastAPI()
-session_manager = SessionManager(base_dir="~/.hiagent")
+config = GlobalConfig()
+session_manager = SessionManager()
 @app.get("/status")
 async def status():
-    config = GlobalConfig().get_config()
     return {
-        "name": "HiAgent",
-        "model": config.get_model(),
-        "model_reasoning_effort": config.get_think_level(),
+        "name": config.get_provider(),
+        "model": config.get_config().get_model(),
+        "model_reasoning_effort": config.get_config().get_think_level(),
         "workspace": str(Path.cwd()),
     }
 
@@ -35,7 +35,6 @@ async def chat(request: Request):
         raise HTTPException(status_code=400, detail="not found session_id")
     # 加载历史聊天记录
     history = session_manager.load_history(session_id)
-    config = GlobalConfig()
     messages: List[Dict] = [UserMessage(prompt).to_dict()]
     session_manager.append_message(session_id, messages[0])
     agent = CoreAgent(
