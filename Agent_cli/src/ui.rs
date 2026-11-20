@@ -1,6 +1,7 @@
 use std::format;
 
-use crate::{event::ChatChunk, app::App};
+use crate::event::AgentEvent;
+use crate::{app::App};
 
 use ratatui::style::Stylize;
 use ratatui::{layout::Rect, widgets::ListItem};
@@ -60,18 +61,41 @@ fn draw_header(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
 
 fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
     let mut text = Text::default();
-
+    let mut start = false;
     for block in &app.blocks {
-        let rendered = match block {
-            ChatChunk::User(msg) => {
+        match block {
+            AgentEvent::User{content: msg} => {
                 text.lines.push(Line::from(vec![
                     Span::styled("▸ ", Style::default().fg(Color::White)),
                     Span::styled(msg, Style::default().fg(Color::White))
                 ]));
+                start = false;
                 true
             }
 
-            ChatChunk::Reasoning(msg) => {
+            AgentEvent::Assistant{content: msg} => {
+                if !start {
+                    text.lines.push(Line::from(vec![
+                        Span::styled("▹ ", Style::default().fg(Color::Cyan)),
+                    ]));
+                    start = true;
+                }
+                text.push_span(msg);
+                true
+            }
+
+            AgentEvent::Content { content } => {
+                if !start {
+                    text.lines.push(Line::from(vec![
+                        Span::styled("▹ ", Style::default().fg(Color::Cyan)),
+                    ]));
+                    start = true;
+                }
+                text.push_span(content);
+                true
+            }
+
+            AgentEvent::Reasoning{content: msg} => {
                 if app.show_reasoning {
                     text.lines.push(Line::from(vec![
                         Span::styled(
@@ -85,49 +109,29 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
                 true
             }
 
-            ChatChunk::Assistant(msg) => {
-                let lines: Vec<&str> = msg.lines().collect();
-                if lines.is_empty() {
-                    text.lines.push(Line::from(vec![
-                        Span::styled("▹ ", Style::default().fg(Color::Cyan)),
-                    ]));
-                } else {
-                    text.lines.push(Line::from(vec![
-                        Span::styled("▹ ", Style::default().fg(Color::Cyan)),
-                        Span::raw(lines[0]),
-                    ]));
-                    for line in &lines[1..] {
-                        text.lines.push(Line::from(vec![
-                            Span::raw("   "),
-                            Span::raw(*line),
-                        ]));
-                    }
-                }
-                true
-            }
-
-            ChatChunk::ToolCall { name, args } => {
+            AgentEvent::ToolCall{ id, name, args } => {
                 text.lines.push(Line::from(vec![
                     Span::styled(format!("🛠 {name}({args})"), Style::default().fg(Color::Yellow))
                 ]));
                 true
             }
 
-            ChatChunk::ToolResult { .. } => {
+            AgentEvent::ToolResult{ .. } => {
                 false
             }
 
-            ChatChunk::Error(err) => {
+            AgentEvent::Error{content} => {
                 text.lines.push(Line::from(vec![
-                    Span::raw(err),
+                    Span::styled("Error: ", Style::default().fg(Color::Red)),
+                    Span::styled(content.as_str(), Style::default().fg(Color::Red)),
                 ]));
                 true
             }
-        };
 
-        if rendered {
-            text.lines.push(Line::default());
-        }
+            _ => {
+                false
+            }
+        };
     }
 
     let chat = Paragraph::new(text)
@@ -189,7 +193,8 @@ fn draw_session_popup(frame: &mut Frame, _area: Rect, app: &mut App) {
            .block(                                                                                                                                                   
                Block::default()                                                                                                                                     
                    .title(" Session List ")
-                   .bg(Color::DarkGray)                                                                                           
+                   .bg(Color::DarkGray)
+                   .fg(Color::White)
            )                                                                                                                                                         
            .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))                                                                       
            .highlight_symbol(" ▸ ")                                                                                                                                  

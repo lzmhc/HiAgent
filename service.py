@@ -1,15 +1,14 @@
 import platform
+import time
 from typing import List, Dict
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi import Request
 import json
-
 from agents.core_agent import CoreAgent
 from config.global_config import GlobalConfig
 from memory.message import UserMessage
-from pathlib import Path
 
 from memory.session_manager import SessionManager
 
@@ -31,65 +30,36 @@ async def chat(request: Request):
     prompt = body["messages"]
     if not session_id:
         raise HTTPException(status_code=400, detail="not found session_id")
-    # 加载历史聊天记录
     history = session_manager.load_history(session_id)
-    messages: List[Dict] = [UserMessage(prompt).to_dict()]
-    session_manager.append_message(session_id, messages[0])
+    latest_message = UserMessage(prompt).to_dict()
+    current_id = str(time.time())
+    if history:
+        parent_id = history[-1].get("id")
+    else:
+        parent_id = None
+    session_manager.append_jsonl_message(session_id, current_id, "message", parent_id, latest_message)
+    messages: List[Dict] = []
+    for message in history:
+        messages.append(message.get("message"))
+    messages.append(latest_message)
     agent = CoreAgent(
         config,
         messages= messages
     )
-    def event_stream():
-        assistant_content = ""
-        pending_tool_call = None
+    def event_stream(current_id):
+        parent_id = current_id
         for event in agent.run():
             role = event["role"]
-            content = event.get("content")
-            if role in {"toolCall", "toolResult", "error", "stop"}:
-                session_manager.append_event(session_id, event)
-
-            if role == "content" and content is not None:
-                assistant_content += content
-            elif role == "toolCall":
-                pending_tool_call = event
-                assistant_content = ""
-            elif role == "toolResult":
-                if pending_tool_call and pending_tool_call.get("id") == event.get("id"):
-                    session_manager.append_message(
-                        session_id,
-                        {
-                            "role": "assistant",
-                            "tool_calls": [pending_tool_call],
-                        },
-                    )
-                    session_manager.append_message(
-                        session_id,
-                        {
-                            "role": "tool",
-                            "tool_call_id": event.get("id", ""),
-                            "content": content or "",
-                        },
-                    )
-                    pending_tool_call = None
-            elif role == "stop":
-                if assistant_content:
-                    session_manager.append_message(
-                        session_id,
-                        {
-                            "role": "assistant",
-                            "content": assistant_content,
-                        },
-                    )
-                assistant_content = ""
-                pending_tool_call = None
-
+            if role in ("system", "user", "assistant", "tool", "content", "reason", "toolCall", "toolResult"):
+                current_id = str(time.time())
+                session_manager.append_jsonl_message(session_id, current_id, "message", parent_id, event)
+                parent_id = current_id
             yield (
                 f"event: {role}\n"
                 f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
             )
-
     return StreamingResponse(
-        event_stream(),
+        event_stream(current_id),
         media_type="text/event-stream"
     )
 
@@ -99,15 +69,14 @@ async def new_session():
     session_id = session_manager.create_session(None)
     return {"session_id": session_id}
 
-
 @app.get("/session/{session_id}/history")
 async def get_history(session_id: str, limit: int = 50):
-    history = session_manager.load_history(session_id, limit)
+    history = []
+    for message in session_manager.load_history(session_id, limit):
+        history.append(message.get("message"))
     return {"history": history}
-
 
 @app.get("/sessions")
 async def list_sessions():
-    """获取所有会话列表"""
     sessions = session_manager.list_sessions()
     return {"sessions": sessions}

@@ -1,3 +1,6 @@
+import datetime
+import json
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
@@ -7,19 +10,37 @@ class Message(ABC):
     def to_dict(self) -> Dict[str, str]:
         pass
 
+class JsonlMessage(Message):
+    def __init__(self, id: str, type: str, parentId: str, message: Dict):
+        self.id = id
+        self.type: str = type
+        self.parentId: str = parentId
+        self.timestamp = str(datetime.datetime.now())
+        self.message: dict = message
+    def to_dict(self) -> Dict[str, str]:
+        return {
+            "id": self.id,
+            "type": self.type,
+            "parentId": self.parentId,
+            "timestamp": self.timestamp,
+            "message": self.message,
+        }
+
 class SystemMessage(Message):
     def __init__(self, message: str):
         self.role = "system"
         self.content: str = message
+        self.timestamp = time.time()
     def to_dict(self) -> Dict[str, str]:
-        return {"role": self.role, "content": self.content}
+        return {"role": self.role, "content": self.content, "timestamp": self.timestamp}
 
 class UserMessage(Message):
     def __init__(self, message: str):
         self.role = "user"
         self.content: str = message
+        self.timestamp = time.time()
     def to_dict(self) -> Dict[str, str]:
-        return {"role": self.role, "content": self.content}
+        return {"role": self.role, "content": self.content, "timestamp": self.timestamp}
 
 class AssistantMessage(Message):
     def __init__(self, content: Optional[str] = None,
@@ -27,8 +48,9 @@ class AssistantMessage(Message):
         self.role = "assistant"
         self.content = content
         self.tool_calls = tool_calls
+        self.timestamp = time.time()
     def to_dict(self) -> Dict[str, object]:
-        d: Dict[str, object] = {"role": self.role}
+        d: Dict[str, object] = {"role": self.role, "timestamp": self.timestamp}
         if self.content is not None:
             d["content"] = self.content
         if self.tool_calls is not None:
@@ -40,11 +62,13 @@ class ToolResultMessage(Message):
         self.role = "tool"
         self.content: str = content
         self.tool_call_id: str = tool_call_id
+        self.timestamp = time.time()
     def to_dict(self) -> Dict[str, str]:
         return {
             "role": self.role,
             "tool_call_id": self.tool_call_id,
             "content": self.content,
+            "timestamp": self.timestamp,
         }
 
 @dataclass
@@ -52,10 +76,12 @@ class ContentEvent(Message):
     def __init__(self, content: str):
         self.role = "content"
         self.content: str = content
+        self.timestamp = time.time()
     def to_dict(self) -> Dict[str, str]:
         return {
             "role": self.role,
             "content": self.content,
+            "timestamp": self.timestamp,
         }
 
 @dataclass
@@ -63,10 +89,12 @@ class ReasonEvent(Message):
     def __init__(self, content: str):
         self.role = "reason"
         self.content: str = content
+        self.timestamp = time.time()
     def to_dict(self) -> Dict[str, str]:
         return {
             "role": self.role,
             "content": self.content,
+            "timestamp": self.timestamp,
         }
 
 @dataclass
@@ -77,6 +105,7 @@ class ToolCallEvent(Message):
         self.id: str = id
         self.name: str = name
         self.args: str = args
+        self.timestamp = time.time()
     def to_dict(self) -> Dict[str, object]:
         return {
             "role": self.role,
@@ -86,6 +115,7 @@ class ToolCallEvent(Message):
                 "name": self.name,
                 "arguments": self.args
             },
+            "timestamp": self.timestamp,
         }
 
 
@@ -96,28 +126,33 @@ class ToolResultEvent(Message):
         self.id: str = id
         self.name: str = name
         self.content: str = content
+        self.timestamp = time.time()
     def to_dict(self) -> Dict[str, str]:
         return {
             "role": self.role,
             "id": self.id,
             "name": self.name,
             "content": self.content,
+            "timestamp": self.timestamp,
         }
 
 @dataclass
 class StopEvent(Message):
     def __init__(self):
         self.role = "stop"
+        self.timestamp = time.time()
     def to_dict(self) -> Dict[str, str]:
-        return {"role": self.role}
+        return {"role": self.role, "timestamp": self.timestamp}
 
 @dataclass
 class ErrorEvent(Message):
     def __init__(self, content: str):
         self.role = "error"
         self.content: str = content
+        self.timestamp = time.time()
     def to_dict(self) -> Dict[str, str]:
         return {
             "role": self.role,
             "content": self.content,
+            "timestamp": self.timestamp,
         }

@@ -1,6 +1,15 @@
 
 #[derive(Debug)]
 pub enum AgentEvent {
+    User {
+        content: String,
+    },
+    Assistant {
+        content: String,
+    },
+    Reasoning {
+        content: String,
+    },
     Content {
         content: String,
     },
@@ -14,8 +23,7 @@ pub enum AgentEvent {
     },
     ToolResult {
         content: String,
-        tool_call_id: String,
-        name: String,
+        tool_call_id: String
     },
     Stop,
     Error {
@@ -23,12 +31,12 @@ pub enum AgentEvent {
     },
 }
 
-#[derive(Debug)]
-pub enum ChatChunk {
-    User(String),
-    Assistant(String),
-    Reasoning(String),
-    ToolCall { name: String, args: String },
-    ToolResult { name: String, content: String },
-    Error(String),
-}
+// #[derive(Debug)]
+// pub enum ChatChunk {
+//     User(String),
+//     Assistant(String),
+//     Reasoning(String),
+//     ToolCall { name: String, args: String },
+//     ToolResult { name: String, content: String },
+//     Error(String),
+// }

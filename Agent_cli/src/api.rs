@@ -1,6 +1,6 @@
 use std::sync::mpsc::Sender;
 
-use crate::event::{AgentEvent, ChatChunk};
+use crate::event::{AgentEvent};
 use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
 use reqwest::Client;
@@ -80,7 +80,6 @@ pub async fn chat(
             "toolResult" => {
                 tx.send(AgentEvent::ToolResult {
                     tool_call_id: data.tool_call_id.unwrap_or_default(),
-                    name: data.name.unwrap_or_default(),
                     content: data.content.unwrap_or_default(),
                 })?;
             }
@@ -123,17 +122,45 @@ pub async fn fetch_sessions() -> Result<Vec<SessionInfo>, Box<dyn std::error::Er
     Ok(sessions)
 }
 
-pub async fn fetch_session_history(session_id: String) -> Result<Vec<ChatChunk>, Box<dyn std::error::Error>> {
+pub async fn fetch_session_history(session_id: String) -> Result<Vec<AgentEvent>, Box<dyn std::error::Error>> {
     let url = format!("{}/session/{}/history", api_url(), session_id);
     let response = reqwest::get(url).await?.json::<serde_json::Value>().await?;
     let history: Vec<serde_json::Value> = serde_json::from_value(response["history"].clone())?;
-    let chunks: Vec<ChatChunk> = history.iter().filter_map(|msg| {                                          
-           let role = msg["role"].as_str()?;                                                                   
-           let content = msg["content"].as_str().unwrap_or("").to_string();                                    
+    let chunks: Vec<AgentEvent> = history.iter().filter_map(|msg| {                                          
+           let role = msg["role"].as_str()?;
            match role {                                                                                        
-               "user" => Some(ChatChunk::User(content)),                                                       
-               "assistant" => Some(ChatChunk::Assistant(content)),                                             
-               _ => None,                                                                                      
+                "user" => {
+                    let content = msg["content"].as_str().unwrap_or("").to_string();  
+                    Some(AgentEvent::User{content})
+                },                                                       
+                "assistant" => {
+                    let content = msg["content"].as_str().unwrap_or("").to_string();  
+                    Some(AgentEvent::Assistant{content})
+                },
+                "content" => {
+                    let content = msg["content"].as_str().unwrap_or("").to_string(); 
+                    Some(AgentEvent::Content { content })
+                },
+                "reason" => {
+                    let content = msg["content"].as_str().unwrap_or("").to_string(); 
+                    Some(AgentEvent::Reason { content })
+                },
+                "toolCall" => {
+                    let id = msg["id"].as_str().unwrap_or("").to_string(); 
+                    let func = msg["function"].as_object(); 
+                    let name = func
+                        .and_then(|f| f.get("name"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let args = func
+                        .and_then(|f| f.get("arguments"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    Some(AgentEvent::ToolCall { id, name, args })
+                },
+                _ => None,                                                                                      
            }                                                                                                   
        }).collect();                                                                                           
     Ok(chunks)

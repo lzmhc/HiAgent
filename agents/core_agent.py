@@ -12,10 +12,8 @@ from memory.message import (
 )
 from tools.shell.shell_pty import execute_pty
 from tools.search.brave_search import brave_search
-from tools.search.bocha_search import bocha_search
 
 available_tools = {
-    "bocha_search": bocha_search,
     "brave_search": brave_search,
     "execute_pty": execute_pty
 }
@@ -38,28 +36,6 @@ def load_agents_md() -> str:
     
     return "\n\n---\n\n".join(agents_content) if agents_content else ""
 tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "bocha_search",
-            "description": "联网搜索互联网最新信息",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "搜索关键词"
-                    },
-                    "count": {
-                        "type": "integer",
-                        "description": "返回结果数量，默认5",
-                        "default": 5
-                    }
-                },
-                "required": ["query"]
-            }
-        }
-    },
     {
         "type": "function",
         "function": {
@@ -174,16 +150,14 @@ class CoreAgent:
                         args = json.loads(arguments) if arguments else {}
                     except json.JSONDecodeError:
                         yield ErrorEvent(content=f"工具参数解析失败：{arguments}").to_dict()
-
                     try:
                         if name == "execute_pty":
                             for output in available_tools[name](**args):
                                 tool_ret += output
                         else:
-                            tool_ret = available_tools[name](**args)
+                            tool_ret = json.dumps(available_tools[name](**args))
                     except Exception as e:
                         yield ErrorEvent(content=f"工具执行失败：{e}").to_dict()
-
                     yield ToolResultEvent(
                         id=id,
                         name=name,

@@ -1,13 +1,13 @@
 use ratatui::widgets::{ListState, ScrollbarState};
 
-use crate::{api::{AppStatus, SessionInfo}, event::{AgentEvent, ChatChunk}};
+use crate::{api::{AppStatus, SessionInfo}, event::{AgentEvent}};
 
 pub struct App {
     pub current_session_id: String,
 
     pub input: String,
 
-    pub blocks: Vec<ChatChunk>,
+    pub blocks: Vec<AgentEvent>,
 
     pub scroll: u16,
 
@@ -57,38 +57,7 @@ impl App {
     }
 
     pub fn handle_agent_event(&mut self, event: AgentEvent) {
-        match event {
-            AgentEvent::Content{content: text} => match self.blocks.last_mut() {
-                Some(ChatChunk::Assistant(s)) => {
-                    s.push_str(&text);
-                }
-                _ => {
-                    self.blocks.push(ChatChunk::Assistant(text));
-                }
-            },
-
-            AgentEvent::Reason{content: text} => match self.blocks.last_mut() {
-                Some(ChatChunk::Reasoning(s)) => {
-                    s.push_str(&text);
-                }
-                _ => {
-                    self.blocks.push(ChatChunk::Reasoning(text));
-                }
-            },
-            AgentEvent::ToolCall{id, name, args} => {
-                self.blocks.push(ChatChunk::ToolCall { name, args });
-            }
-
-            AgentEvent::ToolResult{tool_call_id,  name, content } => {
-                self.blocks.push(ChatChunk::ToolResult { name: name, content: content });
-            }
-
-            AgentEvent::Error{content} => {
-                self.blocks.push(ChatChunk::Error(content));
-            }
-
-            AgentEvent::Stop => {}
-        }
+         self.blocks.push(event)
     }
 
     pub fn toggle_session(&mut self) {

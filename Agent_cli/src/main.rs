@@ -3,7 +3,7 @@ mod api;
 mod app;
 mod ui;
 
-use crate::event::{AgentEvent, ChatChunk};
+use crate::event::{AgentEvent};
 use app::App;
 use crossterm::{
     event::{self as ct_event, Event, KeyCode, KeyModifiers},
@@ -102,13 +102,7 @@ fn run() -> color_eyre::eyre::Result<()> {
                                 rt.block_on(async {
                                     match api::fetch_session_history(session_id_clone).await {
                                         Ok(history) => {
-                                            // 发送历史记录事件
-                                            for chunk in history {
-                                                let event = match chunk {
-                                                    ChatChunk::User(msg) => AgentEvent::Content { content: msg },
-                                                    ChatChunk::Assistant(msg) => AgentEvent::Content { content: msg },
-                                                    _ => continue,
-                                                };
+                                            for event in history {
                                                 let _ = tx.send(event);
                                             }
                                         }
@@ -140,7 +134,7 @@ fn run() -> color_eyre::eyre::Result<()> {
                         if prompt.trim().is_empty() {
                             continue;
                         }
-                        app.blocks.push(ChatChunk::User(prompt.clone()));
+                        app.blocks.push(AgentEvent::User { content: prompt.clone() });
                         let tx = tx.clone();
                         std::thread::spawn(move || {
                             let rt = tokio::runtime::Runtime::new().unwrap();

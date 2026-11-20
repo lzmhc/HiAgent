@@ -3,6 +3,8 @@ import pty
 import select
 import subprocess
 import termios
+import time
+
 
 class ShellSession:
     def __init__(self):
@@ -49,5 +51,4 @@ def execute_pty(command: str):
 if __name__ == "__main__":
     for output in execute_pty("""{"command": "fastfetch"}"""):
         print(output)
-    # print(platform.system())
-    # execute_pty("""tail -f /var/log/Xorg.0.log""")
+    print(str(time.time()))
