@@ -12,17 +12,16 @@ use serde::Deserialize;
 pub struct AppStatus {
     pub name: String,
     pub model: String,
-    pub model_reasoning_effort: String,
-    pub workspace: String,
+    pub model_reasoning_effort: String
 }
 
 #[derive(Debug, Deserialize)]
 struct SseEvent {
     role: String,
     content: Option<String>,
-    id: Option<String>,
+    tool_call_id: Option<String>,
     function: Option<FunctionData>,
-    tool_name: Option<String>,
+    name: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -33,8 +32,7 @@ struct FunctionData {
 
 #[derive(Debug, Deserialize)]
 pub struct SessionInfo {
-    pub session_id: String,
-    pub first_message: String,
+    pub session_id: String
 }
 
 fn api_url() -> String {
@@ -65,15 +63,15 @@ pub async fn chat(
 
         match data.role.as_str() {
             "content" => {
-                tx.send(AgentEvent::Content(data.content.unwrap_or_default()))?;
+                tx.send(AgentEvent::Content{content: data.content.unwrap_or_default()})?;
             }
             "reason" => {
-                tx.send(AgentEvent::Reason(data.content.unwrap_or_default()))?;
+                tx.send(AgentEvent::Reason{ content: data.content.unwrap_or_default()})?;
             }
             "toolCall" => {
                 if let Some(func) = data.function {
                     tx.send(AgentEvent::ToolCall {
-                        id: data.id.unwrap_or_default(),
+                        id: data.tool_call_id.unwrap_or_default(),
                         name: func.name,
                         args: func.arguments,
                     })?;
@@ -81,7 +79,8 @@ pub async fn chat(
             }
             "toolResult" => {
                 tx.send(AgentEvent::ToolResult {
-                    name: data.tool_name.unwrap_or_default(),
+                    tool_call_id: data.tool_call_id.unwrap_or_default(),
+                    name: data.name.unwrap_or_default(),
                     content: data.content.unwrap_or_default(),
                 })?;
             }
@@ -89,10 +88,10 @@ pub async fn chat(
                 tx.send(AgentEvent::Stop)?;
             }
             "error" => {
-                tx.send(AgentEvent::Error(data.content.unwrap_or_default()))?;
+                tx.send(AgentEvent::Error{content: data.content.unwrap_or_default()})?;
             }
-            other => {
-                eprintln!("未知的事件类型: {other}");
+            _ => {
+               eprintln!("unknown role!");
             }
         }
     }

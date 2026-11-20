@@ -67,18 +67,14 @@ fn run() -> color_eyre::eyre::Result<()> {
         if ct_event::poll(Duration::from_millis(16))? {
             if let Event::Key(key) = ct_event::read()? {
                 match key.code {
-                    // ctrl+q 退出
-                    KeyCode::Char('q') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                         break;
                     }
-                    // ctrl+r 切换推理过程显示
                     KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                         app.toggle_reasoning();
                     }
-                    // ctrl+l 会话列表切换
                     KeyCode::Char('l') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                         if !app.show_session_popup {
-                            // 显示会话列表时，先获取会话列表
                             let rt = tokio::runtime::Runtime::new()?;
                             match rt.block_on(api::fetch_sessions()) {
                                 Ok(sessions) => {
@@ -91,19 +87,14 @@ fn run() -> color_eyre::eyre::Result<()> {
                         }
                         app.toggle_session();
                     }
-
-                    // 当会话列表显示时，处理会话列表的键盘导航
                     KeyCode::Up if app.show_session_popup => {
                         app.session_list_prev();
                     }
-
                     KeyCode::Down if app.show_session_popup => {
                         app.session_list_next();
                     }
-
                     KeyCode::Enter if app.show_session_popup => {
                         if let Some(session_id) = app.select_current_session() {
-                            // 加载选中会话的历史记录
                             let tx = tx.clone();
                             let session_id_clone = session_id.clone();
                             std::thread::spawn(move || {
@@ -114,8 +105,8 @@ fn run() -> color_eyre::eyre::Result<()> {
                                             // 发送历史记录事件
                                             for chunk in history {
                                                 let event = match chunk {
-                                                    ChatChunk::User(msg) => AgentEvent::Content(msg),
-                                                    ChatChunk::Assistant(msg) => AgentEvent::Content(msg),
+                                                    ChatChunk::User(msg) => AgentEvent::Content { content: msg },
+                                                    ChatChunk::Assistant(msg) => AgentEvent::Content { content: msg },
                                                     _ => continue,
                                                 };
                                                 let _ = tx.send(event);
@@ -134,7 +125,6 @@ fn run() -> color_eyre::eyre::Result<()> {
                         app.close_session_popup();
                     }
 
-                    // 当会话列表不显示时，处理普通输入
                     KeyCode::Char(c) => {
                         app.insert_char(c);
                     }

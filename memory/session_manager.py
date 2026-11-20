@@ -59,22 +59,7 @@ class SessionManager:
         sessions = []
         for file in self.sessions_dir.glob("*.jsonl"):
             session_id = file.stem
-            first_message = self._read_first_message(file)
             sessions.append({
-                "session_id": session_id,
-                "first_message": first_message.get("content", "")[:50] if first_message else ""
+                "session_id": session_id
             })
         return sessions
-
-    def _read_first_message(self, file_path: Path) -> Optional[Dict]:
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    if not line.strip():
-                        continue
-                    record = json.loads(line)
-                    if record.get("kind", "message") == "message":
-                        return record
-        except:
-            pass
-        return None

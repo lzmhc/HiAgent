@@ -1,12 +1,8 @@
 import os
 import pty
-import re
 import select
 import subprocess
 import termios
-
-PREFIX = "===start==="
-SUFFIX_PATTERN = re.compile(r"===end (\d+)===")
 
 class ShellSession:
     def __init__(self):
@@ -30,9 +26,8 @@ class ShellSession:
         )
         os.close(slave)
     def execute(self, command: str):
-        send = ("echo "+PREFIX+"\n").encode() + (command + "\n").encode("utf-8") + ("echo ===end $?===\n").encode()
+        send = (command + "\n").encode("utf-8")
         os.write(self.master, send)
-        buffer = b""
         while True:
             r, _, _ = select.select([self.master], [], [], 10)
             if not r:
@@ -40,48 +35,19 @@ class ShellSession:
             chunk = os.read(self.master, 4096)
             if not chunk:
                 break
-            buffer += chunk
-            if SUFFIX_PATTERN.search(buffer.decode("utf-8", errors="ignore")):
-                break
-        raw_result = buffer.decode("utf-8", errors="ignore")
-        idx_start = raw_result.find(PREFIX)
-        suffix_match = SUFFIX_PATTERN.search(raw_result, idx_start + len(PREFIX))
-        if idx_start != -1 and suffix_match:
-            stdout = raw_result[idx_start + len(PREFIX): suffix_match.start()]
-            stdout = stdout.removeprefix("\n").removesuffix("\n")
-            exit_code = int(suffix_match.group(1))
-        else:
-            stdout = raw_result
-            exit_code = -1
-        return {
-            "stdout": stdout,
-            "exit_code": exit_code
-        }
+            yield chunk.decode("utf-8")
 class ShellManager:
     def __init__(self):
         self.session = ShellSession()
     def execute_shell(self, command: str):
-        try:
-            output = self.session.execute(command)
-            return {
-                "success": True,
-                "stdout": output["stdout"],
-                "exit_code": output["exit_code"]
-            }
-        except Exception as e:
-            return {
-                "success": False,
-                "stderr": str(e)
-            }
+        return self.session.execute(command)
 
 shell_manager = ShellManager()
 def execute_pty(command: str):
     return shell_manager.execute_shell(command)
 
 if __name__ == "__main__":
-    # print(execute_pty("""echo OK"""))
-    print(execute_pty("tmux ls"))
-    # print(shell_manager.execute_shell("ls"))
-    # print(shell_manager.execute_shell("cd ~"))
-    # print(shell_manager.execute_shell("pwd"))
-    # print(shell_manager.execute_shell("ls"))
+    for output in execute_pty("""{"command": "fastfetch"}"""):
+        print(output)
+    # print(platform.system())
+    # execute_pty("""tail -f /var/log/Xorg.0.log""")

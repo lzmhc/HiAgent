@@ -1,19 +1,26 @@
 
 #[derive(Debug)]
 pub enum AgentEvent {
-    Content(String),
-    Reason(String),
+    Content {
+        content: String,
+    },
+    Reason {
+        content: String,
+    },
     ToolCall {
         id: String,
         name: String,
         args: String,
     },
     ToolResult {
-        name: String,
         content: String,
+        tool_call_id: String,
+        name: String,
     },
     Stop,
-    Error(String),
+    Error {
+        content: String,
+    },
 }
 
 #[derive(Debug)]

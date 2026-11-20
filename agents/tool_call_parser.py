@@ -1,5 +1,3 @@
-import json
-import re
 from typing import Generator
 
 from memory.message import ReasonEvent, ToolCallEvent, StopEvent, ContentEvent
@@ -9,12 +7,9 @@ class ToolCallParser:
     def __init__(self):
         self.normal_text_queue = []
         self.reasoning_queue = []
-        self.tool_call_id = None
-        self.tool_name = ""
-        self.tool_args = ""
-        self.tool_args_list = []
-        self.xml_mode = False
-        self.xml_buffer = ""
+        self.id = None
+        self.name = ""
+        self.args = ""
 
     def process_stream(self, stream: Generator):
         for chunk in stream:
@@ -41,22 +36,21 @@ class ToolCallParser:
                 continue
 
             if hasattr(delta, "tool_calls") and delta.tool_calls:
-                self.tool_args_list = []
                 for tc in delta.tool_calls:
                     if getattr(tc, "id", None):
-                        self.tool_call_id = tc.id
+                        self.id = tc.id
                     func = getattr(tc, "function", None)
                     if func:
                         if getattr(func, "name", None):
-                            self.tool_name = func.name
+                            self.name = func.name
                         if getattr(func, "arguments", None):
-                            self.tool_args += func.arguments
+                            self.args += func.arguments
 
             if getattr(choice, "finish_reason", None) == "tool_calls":
                 yield ToolCallEvent(
-                    tool_call_id=self.tool_call_id,
-                    tool_name=self.tool_name,
-                    tool_args=self.tool_args
+                    id=self.id,
+                    name=self.name,
+                    args=self.args
                 ).to_dict()
 
             if getattr(choice, "finish_reason", None) == "stop":

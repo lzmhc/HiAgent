@@ -1,5 +1,5 @@
 import json
-from typing import List, Dict, Type
+from typing import List, Dict
 from pathlib import Path
 
 from agents.skills import SkillManage
@@ -7,8 +7,8 @@ from agents.tool_call_parser import ToolCallParser
 from agents.base_llm_adapter import BaseLLMAdapter, create_adapter
 from config.global_config import GlobalConfig
 from memory.message import (
-    SystemMessage, UserMessage, AssistantMessage,
-    ToolResultMessage, ToolResultEvent, ErrorEvent,
+    SystemMessage, AssistantMessage,
+    ToolResultMessage, ToolResultEvent, ErrorEvent, ToolCallEvent,
 )
 from tools.shell.shell_pty import execute_pty
 from tools.search.brave_search import brave_search
@@ -155,35 +155,39 @@ class CoreAgent:
                     elif event["role"] == "reason":
                         yield event
                     elif event["role"] == "toolCall":
-                        print("toolCall")
                         parse_result = event
                     elif event["role"] == "stop":
-                        print("stop")
                         return
 
                 if parse_result:
                     func = parse_result.get("function", {})
-                    tool_call_id = parse_result.get("id")
-                    tool_name = func.get("name")
-                    tool_args = func.get("arguments")
+                    id = parse_result.get("id")
+                    name = func.get("name")
+                    arguments = func.get("arguments")
+                    tool_ret = ""
+                    yield ToolCallEvent(
+                        id=id,
+                        name=name,
+                        args=arguments
+                    ).to_dict()
                     try:
-                        args = json.loads(tool_args) if tool_args else {}
+                        args = json.loads(arguments) if arguments else {}
                     except json.JSONDecodeError:
-                        yield ErrorEvent(content=f"工具参数解析失败：{tool_args}").to_dict()
-
-                    yield parse_result
+                        yield ErrorEvent(content=f"工具参数解析失败：{arguments}").to_dict()
 
                     try:
-                        tool_ret = available_tools[tool_name](**args)
+                        if name == "execute_pty":
+                            for output in available_tools[name](**args):
+                                tool_ret += output
+                        else:
+                            tool_ret = available_tools[name](**args)
                     except Exception as e:
                         yield ErrorEvent(content=f"工具执行失败：{e}").to_dict()
 
-                    tool_ret_str = json.dumps(tool_ret, ensure_ascii=False)
-
                     yield ToolResultEvent(
-                        tool_call_id=tool_call_id,
-                        tool_name=tool_name,
-                        content=tool_ret_str,
+                        id=id,
+                        name=name,
+                        content=tool_ret,
                     ).to_dict()
 
                     self.messages.append(
@@ -191,8 +195,8 @@ class CoreAgent:
                     )
                     self.messages.append(
                         ToolResultMessage(
-                            content=tool_ret_str,
-                            tool_call_id=tool_call_id,
+                            content=tool_ret,
+                            tool_call_id=id,
                         ).to_dict()
                     )
         except Exception as e:

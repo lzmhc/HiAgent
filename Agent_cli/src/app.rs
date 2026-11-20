@@ -58,7 +58,7 @@ impl App {
 
     pub fn handle_agent_event(&mut self, event: AgentEvent) {
         match event {
-            AgentEvent::Content(text) => match self.blocks.last_mut() {
+            AgentEvent::Content{content: text} => match self.blocks.last_mut() {
                 Some(ChatChunk::Assistant(s)) => {
                     s.push_str(&text);
                 }
@@ -67,7 +67,7 @@ impl App {
                 }
             },
 
-            AgentEvent::Reason(text) => match self.blocks.last_mut() {
+            AgentEvent::Reason{content: text} => match self.blocks.last_mut() {
                 Some(ChatChunk::Reasoning(s)) => {
                     s.push_str(&text);
                 }
@@ -75,16 +75,16 @@ impl App {
                     self.blocks.push(ChatChunk::Reasoning(text));
                 }
             },
-            AgentEvent::ToolCall { id: _, name, args } => {
+            AgentEvent::ToolCall{id, name, args} => {
                 self.blocks.push(ChatChunk::ToolCall { name, args });
             }
 
-            AgentEvent::ToolResult { name, content } => {
-                self.blocks.push(ChatChunk::ToolResult { name, content });
+            AgentEvent::ToolResult{tool_call_id,  name, content } => {
+                self.blocks.push(ChatChunk::ToolResult { name: name, content: content });
             }
 
-            AgentEvent::Error(err) => {
-                self.blocks.push(ChatChunk::Error(err));
+            AgentEvent::Error{content} => {
+                self.blocks.push(ChatChunk::Error(content));
             }
 
             AgentEvent::Stop => {}

@@ -1,5 +1,4 @@
-import time
-import uuid
+import platform
 from typing import List, Dict
 
 from fastapi import FastAPI, HTTPException
@@ -20,10 +19,9 @@ session_manager = SessionManager()
 @app.get("/status")
 async def status():
     return {
-        "name": config.get_provider(),
+        "name": platform.system(),
         "model": config.get_config().get_model(),
-        "model_reasoning_effort": config.get_config().get_think_level(),
-        "workspace": str(Path.cwd()),
+        "model_reasoning_effort": config.get_config().get_think_level()
     }
 
 @app.post("/chat")
@@ -47,7 +45,6 @@ async def chat(request: Request):
         for event in agent.run():
             role = event["role"]
             content = event.get("content")
-
             if role in {"toolCall", "toolResult", "error", "stop"}:
                 session_manager.append_event(session_id, event)
 

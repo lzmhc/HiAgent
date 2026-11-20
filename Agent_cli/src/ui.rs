@@ -1,5 +1,8 @@
+use std::format;
+
 use crate::{event::ChatChunk, app::App};
 
+use ratatui::style::Stylize;
 use ratatui::{layout::Rect, widgets::ListItem};
 /// Helpers for drawing the TUI layout.
 use ratatui::widgets::{HighlightSpacing, List, Wrap};
@@ -9,7 +12,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, BorderType, Borders, Paragraph, Scrollbar, ScrollbarOrientation},
+    widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation},
 };
 
 pub fn draw(frame: &mut Frame, app: &mut App) {
@@ -39,8 +42,8 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
 fn draw_header(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
     let title = if let Some(status) = &app.status {
         format!(
-            "{}  Model:{}  Reason:{}  Workspace:{}",
-            status.name, status.model, status.model_reasoning_effort, status.workspace
+            "{}  Model:{}  Reason:{} ",
+            status.name, status.model, status.model_reasoning_effort
         )
     } else {
         "Loading...".to_string()
@@ -48,7 +51,7 @@ fn draw_header(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
     let header = Paragraph::new(title)
         .style(
             Style::default()
-                .fg(Color::Cyan)
+                .fg(Color::LightGreen)
                 .add_modifier(Modifier::BOLD),
         )
         .block(Block::default().borders(Borders::BOTTOM));
@@ -62,8 +65,8 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
         let rendered = match block {
             ChatChunk::User(msg) => {
                 text.lines.push(Line::from(vec![
-                    Span::styled("- ", Style::default().fg(Color::Cyan)),
-                    Span::raw(msg),
+                    Span::styled("▸ ", Style::default().fg(Color::White)),
+                    Span::styled(msg, Style::default().fg(Color::White))
                 ]));
                 true
             }
@@ -78,15 +81,6 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
                                 .add_modifier(Modifier::ITALIC),
                         ),
                     ]));
-                } else {
-                    text.lines.push(Line::from(vec![
-                        Span::styled(
-                            "推理过程已折叠",
-                            Style::default()
-                                .fg(Color::DarkGray)
-                                .add_modifier(Modifier::ITALIC),
-                        ),
-                    ]));
                 }
                 true
             }
@@ -95,11 +89,11 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
                 let lines: Vec<&str> = msg.lines().collect();
                 if lines.is_empty() {
                     text.lines.push(Line::from(vec![
-                        Span::styled("> ", Style::default().fg(Color::Cyan)),
+                        Span::styled("▹ ", Style::default().fg(Color::Cyan)),
                     ]));
                 } else {
                     text.lines.push(Line::from(vec![
-                        Span::styled("> ", Style::default().fg(Color::Cyan)),
+                        Span::styled("▹ ", Style::default().fg(Color::Cyan)),
                         Span::raw(lines[0]),
                     ]));
                     for line in &lines[1..] {
@@ -114,7 +108,7 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
 
             ChatChunk::ToolCall { name, args } => {
                 text.lines.push(Line::from(vec![
-                    Span::styled(format!("{name}({args})"), Style::default().fg(Color::Yellow))
+                    Span::styled(format!("🛠 {name}({args})"), Style::default().fg(Color::Yellow))
                 ]));
                 true
             }
@@ -146,20 +140,14 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
 
 fn draw_input(frame: &mut Frame, area: Rect, app: &App) {
     let block = Block::default()
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(Color::Cyan))
-        .title(" Input ")
-        .title_style(
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
+        .style(Style::default()
+            .bg(Color::Black)
+            .fg(Color::Green)
         );
 
     let input_text = app.input.as_str().to_string();
 
     let input = Paragraph::new(input_text)
-        .style(Style::default().fg(Color::White))
         .wrap(Wrap { trim: false })
         .block(block.clone());
 
@@ -175,7 +163,10 @@ fn draw_input(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn draw_footer(frame: &mut Frame, area: ratatui::layout::Rect) {
-    let footer = Paragraph::new("Ctrl+L:Session Ctrl+R:Reasoning  Ctrl+Q:Exit").style(Style::default().fg(Color::DarkGray));
+    let footer = Paragraph::new(" Ctrl+L:Session Ctrl+R:Reasoning Ctrl+C:Exit ")
+        .style(Style::default()
+            .bg(Color::DarkGray)
+        );
 
     frame.render_widget(footer, area);
 }
@@ -186,26 +177,19 @@ fn draw_session_popup(frame: &mut Frame, _area: Rect, app: &mut App) {
         Constraint::Percentage(60), 
         Constraint::Percentage(50)
     );
-    //frame.render_widget(Clear, popup_area);
 
     let items: Vec<ListItem> = app
         .sessions
         .iter()
-        .map(|s| {
-            let display = if s.first_message.is_empty() {                                                                                                         
-                   format!("{}  (空会话)", &s.session_id[..8])                                                                                                       
-               } else {                                                                                                                                              
-                   format!("{}  {}", &s.session_id[..8], s.first_message.chars().take(40).collect::<String>())                                                       
-               };                                                                                                                                                    
-               ListItem::new(Line::from(display))    
+        .map(|s| {                                                                                                                                       
+            ListItem::new(Line::from(format!("{}", &s.session_id)))    
         })
         .collect();
     let list = List::new(items)                                                                                                                                   
            .block(                                                                                                                                                   
-               Block::bordered()                                                                                                                                     
-                   .title(" 会话列表 ")                                                                                                                           
-                   .title_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))                                                                       
-                   .border_style(Style::default().fg(Color::Cyan)),                                                                                                  
+               Block::default()                                                                                                                                     
+                   .title(" Session List ")
+                   .bg(Color::DarkGray)                                                                                           
            )                                                                                                                                                         
            .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))                                                                       
            .highlight_symbol(" ▸ ")                                                                                                                                  
