@@ -1,3 +1,5 @@
+use std::ptr::null;
+
 use ratatui::widgets::{ListState, ScrollbarState};
 
 use crate::{api::{AppStatus, SessionInfo}, event::{AgentEvent}};
@@ -89,13 +91,20 @@ impl App {
 
     pub fn select_current_session(&mut self) -> Option<String> {
         if let Some(i) = self.session_list_state.selected() {
+            if i == 0{
+                self.current_session_id = String::new();
+                self.blocks.clear();
+                self.scroll = 0;
+                self.show_session_popup = false;
+                return Some(String::new());
+            }
             if let Some(session) = self.sessions.get(i) {
                 let session_id = session.session_id.clone();
                 self.current_session_id = session_id.clone();
                 self.blocks.clear();
                 self.scroll = 0;
                 self.show_session_popup = false;
-                return Some(session_id)
+                return Some(session_id);
             }
         }
         None
@@ -106,8 +115,10 @@ impl App {
         self.session_list_state.select(None);
     }
 
-    pub fn update_sessions(&mut self, sessions: Vec<SessionInfo>) {
-        self.sessions = sessions;
+    pub fn update_sessions(&mut self, mut sessions: Vec<SessionInfo>) {
+        self.sessions.clear();
+        self.sessions.push(SessionInfo { session_id: "new".to_string() });
+        self.sessions.append(&mut sessions);
         if !self.sessions.is_empty() {
             self.session_list_state.select(Some(0));
         } else {

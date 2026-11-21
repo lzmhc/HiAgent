@@ -11,10 +11,10 @@ def _load_api_key() -> str:
 def brave_search(query: str, count: int = 5):
     api_key = _load_api_key()
     url = "https://api.search.brave.com/res/v1/web/search"
-    # proxies = {
-    #     "http": "http://127.0.0.1:7897",
-    #     "https": "http://127.0.0.1:7897"
-    # }
+    proxies = {
+        "http": "http://127.0.0.1:7897",
+        "https": "http://127.0.0.1:7897"
+    }
     data = json.dumps({
         "q": query,
         "search_lang": "ca",
@@ -29,7 +29,7 @@ def brave_search(query: str, count: int = 5):
         url,
         data=data,
         headers=headers,
-        # proxies=proxies,
+        proxies=proxies,
         timeout=10
     )
     return response.json()

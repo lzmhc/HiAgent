@@ -3,7 +3,7 @@ mod api;
 mod app;
 mod ui;
 
-use crate::event::{AgentEvent};
+use crate::{api::SessionInfo, event::AgentEvent};
 use app::App;
 use crossterm::{
     event::{self as ct_event, Event, KeyCode, KeyModifiers},
@@ -46,14 +46,16 @@ fn run() -> color_eyre::eyre::Result<()> {
                 eprintln!("Failed to fetch status: {e}");
             }
         }
-        match rt.block_on(api::start_new_session()) {
-            Ok(session_id) => {
-                app.current_session_id = session_id;
+        match rt.block_on(api::fetch_sessions()) {
+            Ok(sessions) => {
+                app.update_sessions(sessions);
+                app.toggle_session();
             }
             Err(e) => {
-                eprintln!("Failed to fetch session_id: {e}");
+                eprintln!("Failed to fetch sessions: {e}");
             }
         }
+        
     }
 
     let (tx, rx) = mpsc::channel::<AgentEvent>();
@@ -79,13 +81,13 @@ fn run() -> color_eyre::eyre::Result<()> {
                             match rt.block_on(api::fetch_sessions()) {
                                 Ok(sessions) => {
                                     app.update_sessions(sessions);
+                                    app.toggle_session();
                                 }
                                 Err(e) => {
                                     eprintln!("Failed to fetch sessions: {e}");
                                 }
                             }
                         }
-                        app.toggle_session();
                     }
                     KeyCode::Up if app.show_session_popup => {
                         app.session_list_prev();
@@ -94,24 +96,36 @@ fn run() -> color_eyre::eyre::Result<()> {
                         app.session_list_next();
                     }
                     KeyCode::Enter if app.show_session_popup => {
+                        let tx = tx.clone();
                         if let Some(session_id) = app.select_current_session() {
-                            let tx = tx.clone();
-                            let session_id_clone = session_id.clone();
-                            std::thread::spawn(move || {
+                            if session_id.is_empty() {
                                 let rt = tokio::runtime::Runtime::new().unwrap();
-                                rt.block_on(async {
-                                    match api::fetch_session_history(session_id_clone).await {
-                                        Ok(history) => {
-                                            for event in history {
-                                                let _ = tx.send(event);
+                                match rt.block_on(api::start_new_session()) {
+                                    Ok(session_id) => {
+                                        app.current_session_id = session_id;
+                                    }
+                                    Err(e) => {
+                                        eprintln!("Failed to fetch session_id: {e}");
+                                    }
+                                }
+                            }else {
+                                let session_id_clone = session_id.clone();
+                                std::thread::spawn(move || {
+                                    let rt = tokio::runtime::Runtime::new().unwrap();
+                                    rt.block_on(async {
+                                        match api::fetch_session_history(session_id_clone).await {
+                                            Ok(history) => {
+                                                for event in history {
+                                                    let _ = tx.send(event);
+                                                }
+                                            }
+                                            Err(e) => {
+                                                eprintln!("Failed to fetch session history: {e}");
                                             }
                                         }
-                                        Err(e) => {
-                                            eprintln!("Failed to fetch session history: {e}");
-                                        }
-                                    }
+                                    });
                                 });
-                            });
+                            }
                         }
                     }
 

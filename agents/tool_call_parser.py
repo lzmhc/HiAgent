@@ -5,8 +5,6 @@ from memory.message import ReasonEvent, ToolCallEvent, StopEvent, ContentEvent
 
 class ToolCallParser:
     def __init__(self):
-        self.normal_text_queue = []
-        self.reasoning_queue = []
         self.id = None
         self.name = ""
         self.args = ""
@@ -24,14 +22,12 @@ class ToolCallParser:
             # 推理内容
             reasoning_content = getattr(delta, "reasoning_content", None)
             if reasoning_content:
-                self.reasoning_queue.append(reasoning_content)
                 yield ReasonEvent(content=reasoning_content).to_dict()
                 continue
 
             # 普通文本
             content = getattr(delta, "content", None)
             if content:
-                self.normal_text_queue.append(content)
                 yield ContentEvent(content=content).to_dict()
                 continue
 

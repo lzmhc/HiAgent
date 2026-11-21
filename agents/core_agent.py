@@ -133,6 +133,7 @@ class CoreAgent:
                     elif event["role"] == "toolCall":
                         parse_result = event
                     elif event["role"] == "stop":
+                        yield event
                         return
 
                 if parse_result:
@@ -148,30 +149,26 @@ class CoreAgent:
                     ).to_dict()
                     try:
                         args = json.loads(arguments) if arguments else {}
-                    except json.JSONDecodeError:
-                        yield ErrorEvent(content=f"工具参数解析失败：{arguments}").to_dict()
-                    try:
                         if name == "execute_pty":
                             for output in available_tools[name](**args):
                                 tool_ret += output
                         else:
                             tool_ret = json.dumps(available_tools[name](**args))
-                    except Exception as e:
-                        yield ErrorEvent(content=f"工具执行失败：{e}").to_dict()
-                    yield ToolResultEvent(
-                        id=id,
-                        name=name,
-                        content=tool_ret,
-                    ).to_dict()
-
-                    self.messages.append(
-                        AssistantMessage(tool_calls=[parse_result]).to_dict()
-                    )
-                    self.messages.append(
-                        ToolResultMessage(
+                        yield ToolResultEvent(
+                            id=id,
+                            name=name,
                             content=tool_ret,
-                            tool_call_id=id,
                         ).to_dict()
-                    )
+                        self.messages.append(
+                            AssistantMessage(tool_calls=[parse_result]).to_dict()
+                        )
+                        self.messages.append(
+                            ToolResultMessage(
+                                content=tool_ret,
+                                tool_call_id=id,
+                            ).to_dict()
+                        )
+                    except Exception as e:
+                        yield ErrorEvent(content=f"CallTool Erroe：{e}").to_dict()
         except Exception as e:
             yield ErrorEvent(content=str(e)).to_dict()

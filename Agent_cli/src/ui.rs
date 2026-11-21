@@ -5,8 +5,7 @@ use crate::{app::App};
 
 use ratatui::style::Stylize;
 use ratatui::{layout::Rect, widgets::ListItem};
-/// Helpers for drawing the TUI layout.
-use ratatui::widgets::{HighlightSpacing, List, Wrap};
+use ratatui::widgets::{Clear, HighlightSpacing, List, Wrap};
 use unicode_width::UnicodeWidthChar;
 use ratatui::{
     Frame,
@@ -181,7 +180,7 @@ fn draw_session_popup(frame: &mut Frame, _area: Rect, app: &mut App) {
         Constraint::Percentage(60), 
         Constraint::Percentage(50)
     );
-
+    
     let items: Vec<ListItem> = app
         .sessions
         .iter()
@@ -194,11 +193,11 @@ fn draw_session_popup(frame: &mut Frame, _area: Rect, app: &mut App) {
                Block::default()                                                                                                                                     
                    .title(" Session List ")
                    .bg(Color::DarkGray)
-                   .fg(Color::White)
+                   .fg(Color::Cyan)
            )                                                                                                                                                         
            .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))                                                                       
            .highlight_symbol(" ▸ ")                                                                                                                                  
            .highlight_spacing(HighlightSpacing::Always);                                                                                                             
-                                                                                                                                                                     
-       frame.render_stateful_widget(list, popup_area, &mut app.session_list_state);
+    frame.render_widget(Clear, popup_area);
+    frame.render_stateful_widget(list, popup_area, &mut app.session_list_state);
 }

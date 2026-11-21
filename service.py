@@ -8,7 +8,7 @@ from fastapi import Request
 import json
 from agents.core_agent import CoreAgent
 from config.global_config import GlobalConfig
-from memory.message import UserMessage
+from memory.message import UserMessage, ContentEvent
 
 from memory.session_manager import SessionManager
 
@@ -48,12 +48,21 @@ async def chat(request: Request):
     )
     def event_stream(current_id):
         parent_id = current_id
+        contents = ""
         for event in agent.run():
             role = event["role"]
-            if role in ("system", "user", "assistant", "tool", "content", "reason", "toolCall", "toolResult"):
+            if role == "content":
+                contents += event["content"]
+            elif role in ("system", "user", "assistant", "tool", "reason", "toolCall", "toolResult"):
                 current_id = str(time.time())
                 session_manager.append_jsonl_message(session_id, current_id, "message", parent_id, event)
                 parent_id = current_id
+            elif role == "stop":
+                if contents !="":
+                    current_id = str(time.time())
+                    session_manager.append_jsonl_message(session_id, current_id, "message", parent_id, ContentEvent(contents).to_dict())
+                    parent_id = current_id
+                    contents = ""
             yield (
                 f"event: {role}\n"
                 f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
