@@ -1,3 +1,4 @@
+import asyncio
 import platform
 import time
 from typing import List, Dict
@@ -8,13 +9,15 @@ from fastapi import Request
 import json
 from agents.core_agent import CoreAgent
 from config.global_config import GlobalConfig
-from memory.message import UserMessage, ContentEvent
+from memory.message import UserMessage, ContentEvent, AssistantMessage, SystemMessage
 
 from memory.session_manager import SessionManager
+from tools.mcp.mcp_manage import McpManage
 
 app = FastAPI()
 config = GlobalConfig()
 session_manager = SessionManager()
+mcp_manage = McpManage()
 @app.get("/status")
 async def status():
     return {
@@ -25,6 +28,7 @@ async def status():
 
 @app.post("/chat")
 async def chat(request: Request):
+    tools = await mcp_manage.get_mcp_tool()
     body = await request.json()
     session_id = body["session_id"]
     prompt = body["messages"]
@@ -39,6 +43,11 @@ async def chat(request: Request):
         parent_id = None
     session_manager.append_jsonl_message(session_id, current_id, "message", parent_id, latest_message)
     messages: List[Dict] = []
+    # messages.append(
+    #     SystemMessage(
+    #         "avaiable mcp tools list:\n"+str(tools)
+    #     ).to_dict()
+    # )
     for message in history:
         messages.append(message.get("message"))
     messages.append(latest_message)

@@ -54,6 +54,7 @@ class ToolCallParser:
                     name=self.name,
                     args=self.args
                 ).to_dict()
+                self.args = ""
 
             if getattr(choice, "finish_reason", None) == "stop":
                 yield StopEvent().to_dict()

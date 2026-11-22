@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import List, Dict
 from pathlib import Path
@@ -10,13 +11,16 @@ from memory.message import (
     SystemMessage, AssistantMessage,
     ToolResultMessage, ToolResultEvent, ErrorEvent, ToolCallEvent,
 )
-from tools.shell.shell_pty import execute_pty
-from tools.search.brave_search import brave_search
+from tools.mcp.mcp_manage import McpManage, mcp_manage
 
-available_tools = {
-    "brave_search": brave_search,
-    "execute_pty": execute_pty
-}
+
+# from tools.shell.shell_pty import execute_pty
+# from tools.search.brave_search import brave_search
+
+# available_tools = {
+#     "brave_search": brave_search,
+#     "execute_pty": execute_pty
+# }
 
 def load_agents_md() -> str:
     search_paths = [
@@ -35,6 +39,7 @@ def load_agents_md() -> str:
                 print(f"读取 {path} 失败: {e}")
     
     return "\n\n---\n\n".join(agents_content) if agents_content else ""
+
 tools = [
     {
         "type": "function",
@@ -93,40 +98,40 @@ class CoreAgent:
             temperature=self.config.get_config().get_temperature(),
             max_tokens=self.config.get_config().get_max_tokens(),
         )
-        self.skill_manage = SkillManage(self.config)
-
-        agents_md_content = load_agents_md()
-        if agents_md_content:
-            self.messages.insert(0, SystemMessage(agents_md_content).to_dict())
+        # self.skill_manage = SkillManage(self.config)
+        self.parser = ToolCallParser()
+        # agents_md_content = load_agents_md()
+        # if agents_md_content:
+        #     self.messages.insert(0, SystemMessage(agents_md_content).to_dict())
 
     def run(self):
-        user_msg = self.messages[-1]
-        skill_match = self.skill_manage.match_skills(user_msg)
-        if skill_match:
-            prompt = "\n\n".join(
-                f"""
-                已加载 Skill：{skill.name}
-
-                Skill 根目录：
-                {skill.root_dir}
-
-                Skill 配置文件：
-                {skill.prompt_file}
-
-                以下是 Skill 的说明：
-
-                {skill.system_prompt}
-                """
-                for skill in skill_match
-            )
-            self.messages.insert(0, SystemMessage(prompt).to_dict())
+        # user_msg = self.messages[-1]
+        # skill_match = self.skill_manage.match_skills(user_msg)
+        # if skill_match:
+        #     prompt = "\n\n".join(
+        #         f"""
+        #         已加载 Skill：{skill.name}
+        #
+        #         Skill 根目录：
+        #         {skill.root_dir}
+        #
+        #         Skill 配置文件：
+        #         {skill.prompt_file}
+        #
+        #         以下是 Skill 的说明：
+        #
+        #         {skill.system_prompt}
+        #         """
+        #         for skill in skill_match
+        #     )
+        #     self.messages.insert(0, SystemMessage(prompt).to_dict())
         try:
             while True:
-                parser = ToolCallParser()
                 stream = self.adapter.stream_invoke(messages=self.messages, tools=tools)
+                # stream = self.adapter.stream_invoke(messages=self.messages)
                 parse_result = None
                 token = None
-                for event in parser.process_stream(stream):
+                for event in self.parser.process_stream(stream):
                     if event["role"] == "content":
                         yield event
                     elif event["role"] == "reason":
@@ -144,36 +149,34 @@ class CoreAgent:
                     id = parse_result.get("id")
                     name = func.get("name")
                     arguments = func.get("arguments")
-                    tool_ret = ""
                     yield ToolCallEvent(
                         id=id,
                         name=name,
                         args=arguments
                     ).to_dict()
+                    self.messages.append(
+                        AssistantMessage(tool_calls=[parse_result]).to_dict()
+                    )
                     try:
                         args = json.loads(arguments) if arguments else {}
-                        if name == "execute_pty":
-                            for output in available_tools[name](**args):
-                                tool_ret += output
-                        else:
-                            tool_ret = json.dumps(available_tools[name](**args))
-                        yield ToolResultEvent(
-                            id=id,
-                            name=name,
-                            content=tool_ret,
-                        ).to_dict()
-                        if token is not None:
-                            yield token
-                        self.messages.append(
-                            AssistantMessage(tool_calls=[parse_result]).to_dict()
-                        )
-                        self.messages.append(
-                            ToolResultMessage(
-                                content=tool_ret,
-                                tool_call_id=id,
+                        tool_ret = getattr(asyncio.run(mcp_manage.call(name, args)), "content")
+                        if tool_ret is not None and len(tool_ret) > 0:
+                            type = getattr(tool_ret[0], "type")
+                            res = getattr(tool_ret[0], type)
+                            yield ToolResultEvent(
+                                id=id,
+                                name=name,
+                                content=res,
                             ).to_dict()
-                        )
+                            self.messages.append(
+                                ToolResultMessage(
+                                    content=res,
+                                    call_id=id,
+                                ).to_dict()
+                            )
                     except Exception as e:
                         yield ErrorEvent(content=f"CallTool Erroe：{e}").to_dict()
+                if token is not None:
+                    yield token
         except Exception as e:
             yield ErrorEvent(content=str(e)).to_dict()

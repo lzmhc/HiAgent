@@ -58,15 +58,16 @@ class AssistantMessage(Message):
         return d
 
 class ToolResultMessage(Message):
-    def __init__(self, content: str, tool_call_id: str):
+    def __init__(self, content: str, call_id: str):
         self.role = "tool"
         self.content: str = content
-        self.tool_call_id: str = tool_call_id
+        self.call_id = call_id
         self.timestamp = time.time()
     def to_dict(self) -> Dict[str, str]:
         return {
             "role": self.role,
-            "tool_call_id": self.tool_call_id,
+            "call_id": self.call_id,
+            "tool_call_id": self.call_id,
             "content": self.content,
             "timestamp": self.timestamp,
         }
