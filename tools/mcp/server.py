@@ -1,12 +1,50 @@
 import json
+import os
+import pty
+import select
+import subprocess
+import termios
+
 import requests
 from pathlib import Path
 from pydantic import Field
 from fastmcp import FastMCP
-from tools.shell.shell_pty import ShellManager
 mcp = FastMCP("Hi MCP Server")
 
-shell_manager = ShellManager()
+class ShellSession:
+    def __init__(self):
+        self.master, slave = pty.openpty()
+        env = os.environ.copy()
+        env["TERM"] = "dumb"
+        env["PS1"] = ""
+        env["PROMPT_COMMAND"] = ""
+        attr = termios.tcgetattr(slave)
+        attr[1] &= ~termios.ONLCR
+        attr[3] &= ~termios.ECHO
+        termios.tcsetattr(slave, termios.TCSANOW, attr)
+        self.proc = subprocess.Popen(
+            ["/bin/bash", "--norc", "+m"],
+            stdin=slave,
+            stdout=slave,
+            stderr=slave,
+            close_fds=True,
+            preexec_fn=os.setsid,
+            env=env,
+        )
+        os.close(slave)
+    def execute(self, command: str):
+        send = (command + "\n").encode("utf-8")
+        os.write(self.master, send)
+        while True:
+            r, _, _ = select.select([self.master], [], [], 10)
+            if not r:
+                break
+            chunk = os.read(self.master, 4096)
+            if not chunk:
+                break
+            yield chunk.decode("utf-8")
+
+shell_session = ShellSession()
 @mcp.tool(
     name="execute_pty",
     title="execute_pty",
@@ -14,7 +52,7 @@ shell_manager = ShellManager()
     meta={"version": "1.0", "author": "lzmhc"}
 )
 def execute_pty(command: str = Field(description = "The shell command or multiline script to execute.")):
-    return shell_manager.execute_shell(command)
+    return shell_session.execute(command)
 
 @mcp.tool(
     name="brave_search",
