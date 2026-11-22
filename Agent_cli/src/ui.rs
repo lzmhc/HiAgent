@@ -2,8 +2,8 @@ use std::format;
 
 use crate::event::AgentEvent;
 use crate::{app::App};
-
 use ratatui::style::Stylize;
+use ratatui::text::ToSpan;
 use ratatui::{layout::Rect, widgets::ListItem};
 use ratatui::widgets::{Clear, HighlightSpacing, List, Wrap};
 use unicode_width::UnicodeWidthChar;
@@ -21,7 +21,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         .constraints([
             Constraint::Length(2), // Header
             Constraint::Min(1),    // Chat
-            Constraint::Length(5), // Input
+            Constraint::Length(3), // Input
             Constraint::Length(1), // Footer
         ])
         .split(frame.area());
@@ -60,7 +60,7 @@ fn draw_header(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
 
 fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
     let mut text = Text::default();
-    let mut start = false;
+    let mut start = true;
     for block in &app.blocks {
         match block {
             AgentEvent::User{content: msg} => {
@@ -68,27 +68,27 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
                     Span::styled("▸ ", Style::default().fg(Color::White)),
                     Span::styled(msg, Style::default().fg(Color::White))
                 ]));
-                start = false;
+                start = true;
                 true
             }
 
             AgentEvent::Assistant{content: msg} => {
-                if !start {
+                if start {
                     text.lines.push(Line::from(vec![
                         Span::styled("▹ ", Style::default().fg(Color::Cyan)),
                     ]));
-                    start = true;
+                    start = false;
                 }
                 text.push_span(msg);
                 true
             }
 
             AgentEvent::Content { content } => {
-                if !start {
+                if start {
                     text.lines.push(Line::from(vec![
                         Span::styled("▹ ", Style::default().fg(Color::Cyan)),
                     ]));
-                    start = true;
+                    start = false;
                 }
                 text.push_span(content);
                 true
@@ -127,6 +127,14 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
                 true
             }
 
+            AgentEvent::Token { completion_tokens, prompt_tokens, total_tokens } => {
+                let s = format!("(⇑{}⇓{}➣{})", completion_tokens, prompt_tokens, total_tokens);
+                text.push_span(Span::from(
+                    Span::styled(s, Style::default().fg(Color::DarkGray))
+                ));
+                true
+            }
+
             _ => {
                 false
             }
@@ -147,21 +155,16 @@ fn draw_input(frame: &mut Frame, area: Rect, app: &App) {
             .bg(Color::Black)
             .fg(Color::Green)
         );
-
     let input_text = app.input.as_str().to_string();
-
     let input = Paragraph::new(input_text)
         .wrap(Wrap { trim: false })
         .block(block.clone());
-
     let inner_area = block.inner(area);
-    frame.render_widget(input, area);
-
     let cursor_x = inner_area.x + app.input.chars()
         .map(|c| c.width().unwrap_or(0) as u16)
         .sum::<u16>();
     let cursor_y = inner_area.y;
-
+    frame.render_widget(input, area);
     frame.set_cursor_position((cursor_x, cursor_y));
 }
 

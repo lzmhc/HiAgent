@@ -3,7 +3,7 @@ mod api;
 mod app;
 mod ui;
 
-use crate::{api::SessionInfo, event::AgentEvent};
+use crate::{event::AgentEvent};
 use app::App;
 use crossterm::{
     event::{self as ct_event, Event, KeyCode, KeyModifiers},
@@ -55,7 +55,6 @@ fn run() -> color_eyre::eyre::Result<()> {
                 eprintln!("Failed to fetch sessions: {e}");
             }
         }
-        
     }
 
     let (tx, rx) = mpsc::channel::<AgentEvent>();

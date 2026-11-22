@@ -1,6 +1,6 @@
 from typing import Generator
 
-from memory.message import ReasonEvent, ToolCallEvent, StopEvent, ContentEvent
+from memory.message import ReasonEvent, ToolCallEvent, StopEvent, ContentEvent, ToolResultEvent, TokenEvent
 
 
 class ToolCallParser:
@@ -12,14 +12,20 @@ class ToolCallParser:
     def process_stream(self, stream: Generator):
         for chunk in stream:
             print(chunk)
+            usage = getattr(chunk, "usage", None)
+            if usage is not None:
+                yield TokenEvent(
+                    getattr(usage, "completion_tokens"),
+                    getattr(usage, "prompt_tokens"),
+                    getattr(usage, "total_tokens"),
+                ).to_dict()
             if not getattr(chunk, "choices", None):
                 continue
             choice = chunk.choices[0]
             delta = getattr(choice, "delta", None)
             if not delta:
                 continue
-            # print(delta)
-            # 推理内容
+
             reasoning_content = getattr(delta, "reasoning_content", None)
             if reasoning_content:
                 yield ReasonEvent(content=reasoning_content).to_dict()
@@ -51,4 +57,3 @@ class ToolCallParser:
 
             if getattr(choice, "finish_reason", None) == "stop":
                 yield StopEvent().to_dict()
-

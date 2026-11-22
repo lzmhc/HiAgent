@@ -156,3 +156,18 @@ class ErrorEvent(Message):
             "content": self.content,
             "timestamp": self.timestamp,
         }
+
+@dataclass
+class TokenEvent(Message):
+    def __init__(self, completion_tokens: int, prompt_tokens: int, total_tokens: int):
+        self.role = "token"
+        self.completion_tokens: int = completion_tokens
+        self.prompt_tokens: int = prompt_tokens
+        self.total_tokens: int = total_tokens
+    def to_dict(self) -> Dict[str, str]:
+        return {
+            "role": self.role,
+            "completion_tokens": self.completion_tokens,
+            "prompt_tokens": self.prompt_tokens,
+            "total_tokens": self.total_tokens,
+        }

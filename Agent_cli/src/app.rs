@@ -1,6 +1,4 @@
-use std::ptr::null;
-
-use ratatui::widgets::{ListState, ScrollbarState};
+use ratatui::{widgets::{ListState, ScrollbarState}};
 
 use crate::{api::{AppStatus, SessionInfo}, event::{AgentEvent}};
 

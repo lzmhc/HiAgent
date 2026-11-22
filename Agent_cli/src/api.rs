@@ -22,6 +22,9 @@ struct SseEvent {
     tool_call_id: Option<String>,
     function: Option<FunctionData>,
     name: Option<String>,
+    completion_tokens: Option<u64>,
+    prompt_tokens: Option<u64>,
+    total_tokens: Option<u64>
 }
 
 #[derive(Debug, Deserialize)]
@@ -88,6 +91,13 @@ pub async fn chat(
             }
             "error" => {
                 tx.send(AgentEvent::Error{content: data.content.unwrap_or_default()})?;
+            }
+            "token" => {
+                tx.send(AgentEvent::Token { 
+                    completion_tokens: data.completion_tokens.unwrap_or_default(), 
+                    prompt_tokens: data.prompt_tokens.unwrap_or_default(), 
+                    total_tokens: data.total_tokens.unwrap_or_default() 
+                })?
             }
             _ => {
                eprintln!("unknown role!");
@@ -159,7 +169,7 @@ pub async fn fetch_session_history(session_id: String) -> Result<Vec<AgentEvent>
                         .unwrap_or("")
                         .to_string();
                     Some(AgentEvent::ToolCall { id, name, args })
-                },
+                }
                 _ => None,                                                                                      
            }                                                                                                   
        }).collect();                                                                                           

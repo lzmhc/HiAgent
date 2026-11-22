@@ -29,4 +29,9 @@ pub enum AgentEvent {
     Error {
         content: String,
     },
+    Token {
+        completion_tokens: u64,
+        prompt_tokens: u64,
+        total_tokens: u64,
+    }
 }

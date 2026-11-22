@@ -125,6 +125,7 @@ class CoreAgent:
                 parser = ToolCallParser()
                 stream = self.adapter.stream_invoke(messages=self.messages, tools=tools)
                 parse_result = None
+                token = None
                 for event in parser.process_stream(stream):
                     if event["role"] == "content":
                         yield event
@@ -132,6 +133,8 @@ class CoreAgent:
                         yield event
                     elif event["role"] == "toolCall":
                         parse_result = event
+                    elif event["role"] == "token":
+                        token = event
                     elif event["role"] == "stop":
                         yield event
                         return
@@ -159,6 +162,8 @@ class CoreAgent:
                             name=name,
                             content=tool_ret,
                         ).to_dict()
+                        if token is not None:
+                            yield token
                         self.messages.append(
                             AssistantMessage(tool_calls=[parse_result]).to_dict()
                         )
