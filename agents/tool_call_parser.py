@@ -1,6 +1,11 @@
 from typing import Generator
 
-from memory.message import ReasonEvent, ToolCallEvent, StopEvent, ContentEvent, ToolResultEvent, TokenEvent
+from openai.types.responses import ResponseCompletedEvent, ResponseCreatedEvent, ResponseInProgressEvent, \
+    ResponseOutputItemAddedEvent, ResponseContentPartAddedEvent, ResponseTextDeltaEvent, ResponseAudioDeltaEvent, \
+    ResponseTextDoneEvent, ResponseOutputItemDoneEvent, ResponseWebSearchCallSearchingEvent, ResponseFunctionWebSearch, \
+    ResponseFunctionToolCall
+
+from memory.message import ReasonEvent, ToolCallEvent, ContentEvent, ToolResultEvent, TokenEvent, StopEvent
 
 
 class ToolCallParser:
@@ -12,49 +17,38 @@ class ToolCallParser:
     def process_stream(self, stream: Generator):
         for chunk in stream:
             print(chunk)
-            usage = getattr(chunk, "usage", None)
-            if usage is not None:
-                yield TokenEvent(
-                    getattr(usage, "completion_tokens"),
-                    getattr(usage, "prompt_tokens"),
-                    getattr(usage, "total_tokens"),
-                ).to_dict()
-            if not getattr(chunk, "choices", None):
-                continue
-            choice = chunk.choices[0]
-            delta = getattr(choice, "delta", None)
-            if not delta:
-                continue
-
-            reasoning_content = getattr(delta, "reasoning_content", None)
-            if reasoning_content:
-                yield ReasonEvent(content=reasoning_content).to_dict()
-                continue
-
-            # 普通文本
-            content = getattr(delta, "content", None)
-            if content:
-                yield ContentEvent(content=content).to_dict()
-                continue
-
-            if hasattr(delta, "tool_calls") and delta.tool_calls:
-                for tc in delta.tool_calls:
-                    if getattr(tc, "id", None):
-                        self.id = tc.id
-                    func = getattr(tc, "function", None)
-                    if func:
-                        if getattr(func, "name", None):
-                            self.name = func.name
-                        if getattr(func, "arguments", None):
-                            self.args += func.arguments
-
-            if getattr(choice, "finish_reason", None) == "tool_calls":
-                yield ToolCallEvent(
-                    id=self.id,
-                    name=self.name,
-                    args=self.args
-                ).to_dict()
-                self.args = ""
-
-            if getattr(choice, "finish_reason", None) == "stop":
-                yield StopEvent().to_dict()
+            if type(chunk) == ResponseCreatedEvent:
+                pass
+            elif type(chunk) == ResponseInProgressEvent:
+                pass
+            elif type(chunk) == ResponseOutputItemAddedEvent:
+                pass
+            elif type(chunk) == ResponseContentPartAddedEvent:
+                pass
+            elif type(chunk) == ResponseTextDeltaEvent:
+                yield ContentEvent(chunk.delta).to_dict()
+            elif type(chunk) == ResponseAudioDeltaEvent:
+                pass
+            elif type(chunk) == ResponseTextDoneEvent:
+                # yield ContentEvent(chunk.text).to_dict()
+                pass
+            elif type(chunk) == ResponseOutputItemDoneEvent:
+                item = chunk.item
+                if type(item) == ResponseFunctionWebSearch:
+                    action = item.action
+                    if action.type == "find_in_page":
+                        yield ToolCallEvent(item.id, item.action.type, str(item.action.url)).to_dict()
+                    elif action.type == "search":
+                        yield ToolCallEvent(item.id, item.action.type, str(item.action.query)).to_dict()
+                elif type(item) == ResponseFunctionToolCall:
+                    arguments = item.arguments
+                    yield ToolCallEvent(item.id, item.name, str(arguments)).to_dict()
+            elif type(chunk) == ResponseCompletedEvent:
+                usage = chunk.response.usage
+                output = chunk.response.output
+                yield TokenEvent(usage.input_tokens, usage.output_tokens, usage.total_tokens).to_dict()
+                if output and len(output) > 0:
+                    item = output[0]
+                    if item.type == "message" and item.phase == "final_answer":
+                        print("stop")
+                        yield StopEvent().to_dict()

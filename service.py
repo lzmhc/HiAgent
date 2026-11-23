@@ -9,7 +9,7 @@ from fastapi import Request
 import json
 from agents.core_agent import CoreAgent
 from config.global_config import GlobalConfig
-from memory.message import UserMessage, ContentEvent, AssistantMessage, SystemMessage
+from memory.message import UserMessage, ContentEvent, AssistantMessage, SystemMessage, TextInput, Input, Message
 
 from memory.session_manager import SessionManager
 from tools.mcp.mcp_manage import McpManage
@@ -28,37 +28,35 @@ async def status():
 
 @app.post("/chat")
 async def chat(request: Request):
-    tools = await mcp_manage.get_mcp_tool()
     body = await request.json()
     session_id = body["session_id"]
     prompt = body["messages"]
     if not session_id:
         raise HTTPException(status_code=400, detail="not found session_id")
-    history = session_manager.load_history(session_id)
-    latest_message = UserMessage(prompt).to_dict()
+    # history = session_manager.load_history(session_id)
+    latest_message = UserMessage([TextInput(prompt).to_dict()]).to_dict()
     current_id = str(time.time())
-    if history:
-        parent_id = history[-1].get("id")
-    else:
-        parent_id = None
-    session_manager.append_jsonl_message(session_id, current_id, "message", parent_id, latest_message)
-    messages: List[Dict] = []
+    # if history:
+    #     parent_id = history[-1].get("id")
+    # else:
+    #     parent_id = None
+    # session_manager.append_jsonl_message(session_id, current_id, "message", "0", latest_message)
+    message: List[Dict] = []
     # messages.append(
     #     SystemMessage(
     #         "avaiable mcp tools list:\n"+str(tools)
     #     ).to_dict()
     # )
-    for message in history:
-        messages.append(message.get("message"))
-    messages.append(latest_message)
+    # for message in history:
+    #     messages.append(message.get("message"))
+    message.append(latest_message)
     agent = CoreAgent(
-        config,
-        messages= messages
+        config
     )
-    def event_stream(current_id):
+    def event_stream(current_id, message):
         parent_id = current_id
         contents = ""
-        for event in agent.run():
+        for event in agent.run(message):
             role = event["role"]
             if role == "content":
                 contents += event["content"]
@@ -77,7 +75,7 @@ async def chat(request: Request):
                 f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
             )
     return StreamingResponse(
-        event_stream(current_id),
+        event_stream(current_id, message),
         media_type="text/event-stream"
     )
 

@@ -9,18 +9,9 @@ from agents.base_llm_adapter import BaseLLMAdapter, create_adapter
 from config.global_config import GlobalConfig
 from memory.message import (
     SystemMessage, AssistantMessage,
-    ToolResultMessage, ToolResultEvent, ErrorEvent, ToolCallEvent,
+    ToolResultMessage, ToolResultEvent, ErrorEvent, ToolCallEvent, Input, Message, TextInput, TextOutput,
 )
-from tools.mcp.mcp_manage import McpManage, mcp_manage
-
-
-# from tools.shell.shell_pty import execute_pty
-# from tools.search.brave_search import brave_search
-
-# available_tools = {
-#     "brave_search": brave_search,
-#     "execute_pty": execute_pty
-# }
+from tools.mcp.mcp_manage import mcp_manage
 
 def load_agents_md() -> str:
     search_paths = [
@@ -39,7 +30,23 @@ def load_agents_md() -> str:
                 print(f"读取 {path} 失败: {e}")
     
     return "\n\n---\n\n".join(agents_content) if agents_content else ""
-
+# tools = [
+#     {
+#         "type": "mcp",
+#         "server_label": "mcp_server",
+#         "server_url": "http://localhost:8001/mcp",
+#         "require_approval": "never",
+#     }
+# ]
+# tools = [
+#     {"type": "web_search"},
+#     {
+#         "type": "mcp",
+#         "server_label": "mcp_serve",
+#         "server_url": "https://mcp.wutwowu.us.kg/mcp",
+#         "require_approval": "never",
+#     }
+# ]
 tools = [
     {
         "type": "function",
@@ -86,10 +93,9 @@ tools = [
 
 
 class CoreAgent:
-    def __init__(self, config: GlobalConfig, messages: List[Dict]):
+    def __init__(self, config: GlobalConfig):
         super().__init__()
         self.config = config
-        self.messages = messages
         self.adapter: BaseLLMAdapter = create_adapter(
             model=self.config.get_config().get_model(),
             api_key=self.config.get_config().get_api_key(),
@@ -104,7 +110,7 @@ class CoreAgent:
         # if agents_md_content:
         #     self.messages.insert(0, SystemMessage(agents_md_content).to_dict())
 
-    def run(self):
+    def run(self, message):
         # user_msg = self.messages[-1]
         # skill_match = self.skill_manage.match_skills(user_msg)
         # if skill_match:
@@ -127,56 +133,42 @@ class CoreAgent:
         #     self.messages.insert(0, SystemMessage(prompt).to_dict())
         try:
             while True:
-                stream = self.adapter.stream_invoke(messages=self.messages, tools=tools)
-                # stream = self.adapter.stream_invoke(messages=self.messages)
-                parse_result = None
-                token = None
+                # stream = self.adapter.stream_invoke(messages=self.messages, tools=tools)
+                stream = self.adapter.stream_invoke(message=message, tools=tools)
                 for event in self.parser.process_stream(stream):
                     if event["role"] == "content":
                         yield event
                     elif event["role"] == "reason":
                         yield event
                     elif event["role"] == "toolCall":
-                        parse_result = event
+                        function = event.get("function")
+                        id = event.get("id")
+                        name = function.get("name")
+                        arguments = function.get("arguments")
+                        yield event
+                        try:
+                            args = json.loads(arguments) if arguments else {}
+                            tool_ret = getattr(asyncio.run(mcp_manage.call(name, args)), "content")
+                            if tool_ret is not None and len(tool_ret) > 0:
+                                type = getattr(tool_ret[0], "type")
+                                res = getattr(tool_ret[0], type)
+                                yield ToolResultEvent(
+                                    id=id,
+                                    name=name,
+                                    content=res,
+                                ).to_dict()
+                                message = [
+                                    # ToolResultMessage(content=[TextInput(res).to_dict()], tool_call_id=id).to_dict()
+                                    AssistantMessage(content=[TextOutput(message[0].get("content")[0]["text"]).to_dict()]).to_dict(),
+                                    AssistantMessage(content=[TextOutput(res).to_dict()]).to_dict()
+                                ]
+                                print(f"message={message}")
+                        except Exception as e:
+                            yield ErrorEvent(content=f"CallTool Erroe：{e}").to_dict()
                     elif event["role"] == "token":
-                        token = event
+                        yield event
                     elif event["role"] == "stop":
                         yield event
                         return
-
-                if parse_result:
-                    func = parse_result.get("function", {})
-                    id = parse_result.get("id")
-                    name = func.get("name")
-                    arguments = func.get("arguments")
-                    yield ToolCallEvent(
-                        id=id,
-                        name=name,
-                        args=arguments
-                    ).to_dict()
-                    self.messages.append(
-                        AssistantMessage(tool_calls=[parse_result]).to_dict()
-                    )
-                    try:
-                        args = json.loads(arguments) if arguments else {}
-                        tool_ret = getattr(asyncio.run(mcp_manage.call(name, args)), "content")
-                        if tool_ret is not None and len(tool_ret) > 0:
-                            type = getattr(tool_ret[0], "type")
-                            res = getattr(tool_ret[0], type)
-                            yield ToolResultEvent(
-                                id=id,
-                                name=name,
-                                content=res,
-                            ).to_dict()
-                            self.messages.append(
-                                ToolResultMessage(
-                                    content=res,
-                                    call_id=id,
-                                ).to_dict()
-                            )
-                    except Exception as e:
-                        yield ErrorEvent(content=f"CallTool Erroe：{e}").to_dict()
-                if token is not None:
-                    yield token
         except Exception as e:
             yield ErrorEvent(content=str(e)).to_dict()

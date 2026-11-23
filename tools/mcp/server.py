@@ -91,5 +91,6 @@ def brave_search(
     )
     return response.json()
 
-# if __name__ == "__main__":
-#     mcp.run()
+if __name__ == "__main__":
+    mcp.run(transport="http", port=8001)
+    # mcp.run()
