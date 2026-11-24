@@ -1,4 +1,3 @@
-import asyncio
 import platform
 import time
 from typing import List, Dict
@@ -9,7 +8,8 @@ from fastapi import Request
 import json
 from agents.core_agent import CoreAgent
 from config.global_config import GlobalConfig
-from memory.message import UserMessage, ContentEvent, AssistantMessage, SystemMessage, TextInput, Input, Message
+from memory.message import UserMessage, AssistantMessage, SystemMessage, TextInput, Input, Message, \
+    TextOutput, ToolCallMessage, ToolResultMessage, ReasonMessage, StopEvent
 
 from memory.session_manager import SessionManager
 from tools.mcp.mcp_manage import McpManage
@@ -33,49 +33,43 @@ async def chat(request: Request):
     prompt = body["messages"]
     if not session_id:
         raise HTTPException(status_code=400, detail="not found session_id")
-    # history = session_manager.load_history(session_id)
+    history = session_manager.load_history(session_id)
     latest_message = UserMessage([TextInput(prompt).to_dict()]).to_dict()
     current_id = str(time.time())
-    # if history:
-    #     parent_id = history[-1].get("id")
-    # else:
-    #     parent_id = None
-    # session_manager.append_jsonl_message(session_id, current_id, "message", "0", latest_message)
-    message: List[Dict] = []
-    # messages.append(
-    #     SystemMessage(
-    #         "avaiable mcp tools list:\n"+str(tools)
-    #     ).to_dict()
-    # )
-    # for message in history:
-    #     messages.append(message.get("message"))
-    message.append(latest_message)
+    if len(history) > 0:
+        parent_id = history[-1].get("id")
+    else:
+        parent_id = None
+    session_manager.append_jsonl_message(session_id, current_id, "message", parent_id, latest_message)
+    messages: List[Dict] = []
+    for message in history:
+        messages.append(message.get("message"))
+    messages.append(latest_message)
     agent = CoreAgent(
         config
     )
-    def event_stream(current_id, message):
+    def event_stream(current_id, messages):
         parent_id = current_id
         contents = ""
-        for event in agent.run(message):
-            role = event["role"]
-            if role == "content":
-                contents += event["content"]
-            elif role in ("system", "user", "assistant", "tool", "reason", "toolCall", "toolResult"):
+        for event in agent.run(messages):
+            if type(event) == AssistantMessage:
+                if isinstance(event.content, str):
+                    contents += event.content
+            elif type(event) in (SystemMessage, UserMessage, AssistantMessage, ReasonMessage):
                 current_id = str(time.time())
-                session_manager.append_jsonl_message(session_id, current_id, "message", parent_id, event)
+                session_manager.append_jsonl_message(session_id, current_id, "message", parent_id, AssistantMessage([event.to_dict()]).to_dict())
                 parent_id = current_id
-            elif role == "stop":
+            elif type(event) == StopEvent:
                 if contents !="":
                     current_id = str(time.time())
-                    session_manager.append_jsonl_message(session_id, current_id, "message", parent_id, ContentEvent(contents).to_dict())
+                    session_manager.append_jsonl_message(session_id, current_id, "message", parent_id, AssistantMessage([TextOutput(contents).to_dict()]).to_dict())
                     parent_id = current_id
                     contents = ""
             yield (
-                f"event: {role}\n"
-                f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                f"data: {json.dumps(event.to_dict())}\n\n"
             )
     return StreamingResponse(
-        event_stream(current_id, message),
+        event_stream(current_id, messages),
         media_type="text/event-stream"
     )
 

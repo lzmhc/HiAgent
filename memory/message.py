@@ -1,10 +1,7 @@
-import datetime
-import json
-import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from symtable import Class
-from typing import List, Dict, Optional
+from dataclasses import dataclass
+from typing import List, Dict, Union
+
 
 class Input(ABC):
     @abstractmethod
@@ -68,18 +65,16 @@ class SystemMessage(Message):
     def __init__(self, input: List[Dict]):
         self.role = "system"
         self.content = input
-        self.timestamp = time.time()
     def to_dict(self) -> Dict[str, str]:
         return {
             "role": self.role,
-            "content": self.content,
+            "content": self.content
         }
 
 class UserMessage(Message):
     def __init__(self, input: List[Dict]):
         self.role = "user"
         self.content = input
-        self.timestamp = time.time()
     def to_dict(self) -> Dict[str, str]:
         return {
             "role": self.role,
@@ -87,9 +82,10 @@ class UserMessage(Message):
         }
 
 class AssistantMessage(Message):
-    def __init__(self, content: List[Dict]):
+    def __init__(self, content: Union[str, List[Dict], None]):
         self.role = "assistant"
         self.content = content
+
     def to_dict(self) -> Dict[str, object]:
         return {
             "role": self.role,
@@ -107,20 +103,20 @@ class ToolResultMessage(Message):
             "tool_call_id": self.tool_call_id,
             "content": self.content
         }
+#
+# @dataclass
+# class ContentEvent(Message):
+#     def __init__(self, text: str):
+#         self.role = "content"
+#         self.content = text
+#     def to_dict(self) -> Dict[str, str]:
+#         return {
+#             "role": self.role,
+#             "content": self.content
+#         }
 
 @dataclass
-class ContentEvent(Message):
-    def __init__(self, text: str):
-        self.role = "content"
-        self.content = text
-    def to_dict(self) -> Dict[str, str]:
-        return {
-            "role": self.role,
-            "content": self.content
-        }
-
-@dataclass
-class ReasonEvent(Message):
+class ReasonMessage(Message):
     def __init__(self, input: List[Dict]):
         self.role = "reason"
         self.content = input
@@ -131,29 +127,30 @@ class ReasonEvent(Message):
         }
 
 @dataclass
-class ToolCallEvent(Message):
-    def __init__(self, id: str, name: str, args: str):
-        self.role: str = "toolCall"
-        self.type: str = "function"
+class ToolCallMessage(Message):
+    def __init__(self, id: str, call_id: str, name: str, args: str):
+        self.role: str = "function_call"
         self.id: str = id
+        self.call_id: str = call_id
+        self.function: Dict = {
+            "name": name,
+            "arguments": args
+        }
         self.name: str = name
         self.args: str = args
     def to_dict(self) -> Dict[str, object]:
         return {
             "role": self.role,
             "id": self.id,
-            "type": self.type,
-            "function": {
-                "name": self.name,
-                "arguments": self.args
-            }
+            "call_id": self.call_id,
+            "function": self.function
         }
 
 
 @dataclass
-class ToolResultEvent(Message):
+class ToolResultMessage(Message):
     def __init__(self, id: str, name: str, content: str):
-        self.role: str = "toolResult"
+        self.role: str = "function_call_output"
         self.id: str = id
         self.name: str = name
         self.content = content
@@ -169,6 +166,13 @@ class ToolResultEvent(Message):
 class StopEvent(Message):
     def __init__(self):
         self.role = "stop"
+    def to_dict(self) -> Dict[str, str]:
+        return {"role": self.role}
+
+@dataclass
+class CompletedEvent(Message):
+    def __init__(self):
+        self.role = "completed"
     def to_dict(self) -> Dict[str, str]:
         return {"role": self.role}
 

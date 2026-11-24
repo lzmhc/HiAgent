@@ -72,18 +72,7 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
                 true
             }
 
-            AgentEvent::Assistant{content: msg} => {
-                if start {
-                    text.lines.push(Line::from(vec![
-                        Span::styled("▹ ", Style::default().fg(Color::Cyan)),
-                    ]));
-                    start = false;
-                }
-                text.push_span(msg);
-                true
-            }
-
-            AgentEvent::Content { content } => {
+            AgentEvent::Assistant { content } => {
                 if start {
                     text.lines.push(Line::from(vec![
                         Span::styled("▹ ", Style::default().fg(Color::Cyan)),

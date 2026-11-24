@@ -16,7 +16,7 @@ class BaseLLMAdapter(ABC):
         pass
 
     @abstractmethod
-    def stream_invoke(self, message: List[Dict], tools : List[Dict]) -> Iterator[ChatCompletionChunk]:
+    def stream_invoke(self, messages: List[Dict], tools : List[Dict]) -> Iterator[ChatCompletionChunk]:
         pass
 
 class OpenAIAdapter(BaseLLMAdapter):
@@ -27,16 +27,17 @@ class OpenAIAdapter(BaseLLMAdapter):
             base_url=self.base_url,
             timeout=self.timeout
         )
-    def stream_invoke(self, message: List[Dict], tools: List[Dict]) -> Iterator[ChatCompletionChunk]:
+    def stream_invoke(self, messages: List[Dict], tools: List[Dict]) -> Iterator[ChatCompletionChunk]:
         if not self.client:
             self.client = self.create_client()
         try:
             response = self.client.responses.create(
                 model=self.model,
-                input=message,
+                input=messages,
                 stream=True,
                 temperature=self.temperature,
-                tools=tools
+                tools=tools,
+                reasoning={"effort": "low"},
             )
             return response
         except Exception as e:

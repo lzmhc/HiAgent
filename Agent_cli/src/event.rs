@@ -10,9 +10,6 @@ pub enum AgentEvent {
     Reasoning {
         content: String,
     },
-    Content {
-        content: String,
-    },
     Reason {
         content: String,
     },

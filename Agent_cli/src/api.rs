@@ -65,13 +65,13 @@ pub async fn chat(
         let data: SseEvent = serde_json::from_str(&event.data)?;
 
         match data.role.as_str() {
-            "content" => {
-                tx.send(AgentEvent::Content{content: data.content.unwrap_or_default()})?;
+            "assistant" => {
+                tx.send(AgentEvent::Assistant{content: data.content.unwrap_or_default()})?;
             }
             "reason" => {
                 tx.send(AgentEvent::Reason{ content: data.content.unwrap_or_default()})?;
             }
-            "toolCall" => {
+            "function_call" => {
                 if let Some(func) = data.function {
                     tx.send(AgentEvent::ToolCall {
                         id: data.tool_call_id.unwrap_or_default(),
@@ -80,7 +80,7 @@ pub async fn chat(
                     })?;
                 }
             }
-            "toolResult" => {
+            "function_call_output" => {
                 tx.send(AgentEvent::ToolResult {
                     tool_call_id: data.tool_call_id.unwrap_or_default(),
                     content: data.content.unwrap_or_default(),
@@ -140,22 +140,18 @@ pub async fn fetch_session_history(session_id: String) -> Result<Vec<AgentEvent>
            let role = msg["role"].as_str()?;
            match role {                                                                                        
                 "user" => {
-                    let content = msg["content"].as_str().unwrap_or("").to_string();  
+                    let content = msg["content"][0]["text"].as_str().unwrap_or("").to_string();  
                     Some(AgentEvent::User{content})
                 },                                                       
                 "assistant" => {
-                    let content = msg["content"].as_str().unwrap_or("").to_string();  
+                    let content = msg["content"][0]["text"].as_str().unwrap_or("").to_string();  
                     Some(AgentEvent::Assistant{content})
                 },
-                "content" => {
-                    let content = msg["content"].as_str().unwrap_or("").to_string(); 
-                    Some(AgentEvent::Content { content })
-                },
                 "reason" => {
-                    let content = msg["content"].as_str().unwrap_or("").to_string(); 
+                    let content = msg["content"][0]["text"].as_str().unwrap_or("").to_string(); 
                     Some(AgentEvent::Reason { content })
                 },
-                "toolCall" => {
+                "function_call" => {
                     let id = msg["id"].as_str().unwrap_or("").to_string(); 
                     let func = msg["function"].as_object(); 
                     let name = func
