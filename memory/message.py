@@ -15,13 +15,6 @@ class TextInput(Input):
     def to_dict(self) -> Dict[str, str]:
         return {"type": self.type, "text": self.text}
 
-class TextOutput(Input):
-    def __init__(self, text: str):
-        self.type = "output_text"
-        self.text = text
-    def to_dict(self) -> Dict[str, str]:
-        return {"type": self.type, "text": self.text}
-
 class ImageInput(Input):
     def __init__(self, url: str):
         self.type = "input_image"
@@ -42,6 +35,30 @@ class FileInput(Input):
         self.file_url = url
     def to_dict(self) -> Dict[str, str]:
         return {"type": self.type, "file_url": self.file_url}
+
+class TextOutput(Input):
+    def __init__(self, text: str):
+        self.type = "output_text"
+        self.text = text
+    def to_dict(self) -> Dict[str, str]:
+        return {"type": self.type, "text": self.text}
+
+class FunctionCall(Input):
+    def __init__(self, call_id: str, name: str, args: str):
+        self.type = "function_call"
+        self.call_id = call_id
+        self.name = name
+        self.args = args
+    def to_dict(self) -> Dict[str, str]:
+        return {"type": self.type, "name": self.name, "args": self.args}
+
+class FunctionCallOutput(Input):
+    def __init__(self, call_id: str, output: str):
+        self.type = "function_call_output"
+        self.call_id = call_id
+        self.output = output
+    def to_dict(self) -> Dict[str, str]:
+        return {"type": self.type, "call_id": self.call_id, "output": self.output}
 
 class Message(ABC):
     def to_dict(self) -> Dict[str, str]:
@@ -85,24 +102,37 @@ class AssistantMessage(Message):
     def __init__(self, content: Union[str, List[Dict], None]):
         self.role = "assistant"
         self.content = content
-
     def to_dict(self) -> Dict[str, object]:
         return {
             "role": self.role,
             "content": self.content
         }
 
-class ToolResultMessage(Message):
-    def __init__(self, content: List[Dict], tool_call_id: str):
-        self.role = "tool_result"
-        self.content = content
+class ToolMessage(Message):
+    def __init__(self, tool_call_id: str, name: str, content: Union[str, List[Dict], None]):
+        self.role = "tool"
         self.tool_call_id = tool_call_id
-    def to_dict(self) -> Dict[str, str]:
+        self.name = name
+        self.content = content
+    def to_dict(self) -> Dict[str, object]:
         return {
             "role": self.role,
             "tool_call_id": self.tool_call_id,
+            "name": self.name,
             "content": self.content
         }
+#
+# class ToolResultMessage(Message):
+#     def __init__(self, content: List[Dict], tool_call_id: str):
+#         self.role = "tool_result"
+#         self.content = content
+#         self.tool_call_id = tool_call_id
+#     def to_dict(self) -> Dict[str, str]:
+#         return {
+#             "role": self.role,
+#             "tool_call_id": self.tool_call_id,
+#             "content": self.content
+#         }
 #
 # @dataclass
 # class ContentEvent(Message):
@@ -115,52 +145,52 @@ class ToolResultMessage(Message):
 #             "content": self.content
 #         }
 
-@dataclass
-class ReasonMessage(Message):
-    def __init__(self, input: List[Dict]):
-        self.role = "reason"
-        self.content = input
-    def to_dict(self) -> Dict[str, str]:
-        return {
-            "role": self.role,
-            "content": self.content
-        }
+# @dataclass
+# class ReasonMessage(Message):
+#     def __init__(self, input: List[Dict]):
+#         self.role = "reason"
+#         self.content = input
+#     def to_dict(self) -> Dict[str, str]:
+#         return {
+#             "role": self.role,
+#             "content": self.content
+#         }
 
-@dataclass
-class ToolCallMessage(Message):
-    def __init__(self, id: str, call_id: str, name: str, args: str):
-        self.role: str = "function_call"
-        self.id: str = id
-        self.call_id: str = call_id
-        self.function: Dict = {
-            "name": name,
-            "arguments": args
-        }
-        self.name: str = name
-        self.args: str = args
-    def to_dict(self) -> Dict[str, object]:
-        return {
-            "role": self.role,
-            "id": self.id,
-            "call_id": self.call_id,
-            "function": self.function
-        }
-
-
-@dataclass
-class ToolResultMessage(Message):
-    def __init__(self, id: str, name: str, content: str):
-        self.role: str = "function_call_output"
-        self.id: str = id
-        self.name: str = name
-        self.content = content
-    def to_dict(self) -> Dict[str, str]:
-        return {
-            "role": self.role,
-            "id": self.id,
-            "name": self.name,
-            "content": self.content
-        }
+# @dataclass
+# class ToolCallMessage(Message):
+#     def __init__(self, id: str, call_id: str, name: str, args: str):
+#         self.role: str = "function_call"
+#         self.id: str = id
+#         self.call_id: str = call_id
+#         self.function: Dict = {
+#             "name": name,
+#             "arguments": args
+#         }
+#         self.name: str = name
+#         self.args: str = args
+#     def to_dict(self) -> Dict[str, object]:
+#         return {
+#             "role": self.role,
+#             "id": self.id,
+#             "call_id": self.call_id,
+#             "function": self.function
+#         }
+#
+#
+# @dataclass
+# class ToolResultMessage(Message):
+#     def __init__(self, id: str, name: str, content: str):
+#         self.role: str = "function_call_output"
+#         self.id: str = id
+#         self.name: str = name
+#         self.content = content
+#     def to_dict(self) -> Dict[str, str]:
+#         return {
+#             "role": self.role,
+#             "id": self.id,
+#             "name": self.name,
+#             "content": self.content
+#         }
 
 @dataclass
 class StopEvent(Message):

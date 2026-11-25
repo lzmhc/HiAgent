@@ -1,11 +1,10 @@
 from typing import Generator
 from memory.message import TokenEvent, StopEvent, \
-    AssistantMessage, ToolCallMessage, TextOutput
+    AssistantMessage, TextOutput, ToolMessage, FunctionCall
 
 
 class ToolCallParser:
     def __init__(self):
-        self.id = None
         self.call_id = None
         self.name = None
         self.args = None
@@ -19,7 +18,6 @@ class ToolCallParser:
                 item = event.item
                 if item.type == "function_call":
                     self.name = item.name
-                    self.id = item.id
                     self.call_id = item.call_id
             elif event.type == "response.function_call_arguments.done":
                 self.args = event.arguments
@@ -27,12 +25,11 @@ class ToolCallParser:
                 usage = event.response.usage
                 yield TokenEvent(usage.input_tokens, usage.output_tokens, usage.total_tokens)
                 output = event.response.output
-                if output[0].phase == "final_answer":
+                if getattr(output[0], "phase", None) is not None and output[0].phase == "final_answer":
                     print("stop")
                     yield StopEvent()
-            if self.id is not None and self.call_id is not None and self.name is not None and self.args is not None:
-                yield ToolCallMessage(self.id, self.call_id, self.name, self.args)
-                self.id = None
+            if self.call_id is not None and self.name is not None and self.args is not None:
+                yield ToolMessage(self.call_id, self.name, [FunctionCall(self.call_id, self.name, self.args).to_dict()])
                 self.call_id = None
                 self.name = None
                 self.args = None

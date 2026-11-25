@@ -1,16 +1,13 @@
 import platform
 import time
 from typing import List, Dict
-
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi import Request
 import json
 from agents.core_agent import CoreAgent
 from config.global_config import GlobalConfig
-from memory.message import UserMessage, AssistantMessage, SystemMessage, TextInput, Input, Message, \
-    TextOutput, ToolCallMessage, ToolResultMessage, ReasonMessage, StopEvent
-
+from memory.message import UserMessage, AssistantMessage, SystemMessage, TextInput, TextOutput, StopEvent, ToolMessage
 from memory.session_manager import SessionManager
 from tools.mcp.mcp_manage import McpManage
 
@@ -55,9 +52,9 @@ async def chat(request: Request):
             if type(event) == AssistantMessage:
                 if isinstance(event.content, str):
                     contents += event.content
-            elif type(event) in (SystemMessage, UserMessage, AssistantMessage, ReasonMessage):
+            elif type(event) in (SystemMessage, UserMessage, ToolMessage):
                 current_id = str(time.time())
-                session_manager.append_jsonl_message(session_id, current_id, "message", parent_id, AssistantMessage([event.to_dict()]).to_dict())
+                session_manager.append_jsonl_message(session_id, current_id, "message", parent_id, event.to_dict())
                 parent_id = current_id
             elif type(event) == StopEvent:
                 if contents !="":

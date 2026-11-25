@@ -1,7 +1,5 @@
 import asyncio
 import json
-import sys
-from typing import List, Dict
 from pathlib import Path
 
 from agents.skills import SkillManage
@@ -9,9 +7,8 @@ from agents.tool_call_parser import ToolCallParser
 from agents.base_llm_adapter import BaseLLMAdapter, create_adapter
 from config.global_config import GlobalConfig
 from memory.message import (
-    SystemMessage, AssistantMessage,
-    ToolResultMessage, ErrorEvent, Input, Message, TextInput, TextOutput, ReasonMessage, ToolCallMessage, TokenEvent,
-    StopEvent,
+    SystemMessage, AssistantMessage, ErrorEvent, Input, Message, TextInput, TextOutput, TokenEvent,
+    StopEvent, ToolMessage, FunctionCallOutput,
 )
 from tools.mcp.mcp_manage import mcp_manage
 
@@ -20,7 +17,6 @@ def load_agents_md() -> str:
         Path(__file__).parent.parent / "AGENTS.md",
         Path(__file__).parent.parent / "CLAUDE.md",
     ]
-    
     agents_content = []
     for path in search_paths:
         if path.exists():
@@ -32,25 +28,8 @@ def load_agents_md() -> str:
                 print(f"读取 {path} 失败: {e}")
     
     return "\n\n---\n\n".join(agents_content) if agents_content else ""
-# tools = [
-#     {
-#         "type": "mcp",
-#         "server_label": "mcp_server",
-#         "server_url": "http://localhost:8001/mcp",
-#         "require_approval": "never",
-#     }
-# ]
-# tools = [
-#     {"type": "web_search"},
-#     {
-#         "type": "mcp",
-#         "server_label": "mcp_serve",
-#         "server_url": "https://mcp.wutwowu.us.kg/mcp",
-#         "require_approval": "never",
-#     }
-# ]
+
 tools = [
-    # {"type": "web_search"},
     {
         "type": "function",
         "function": {
@@ -136,30 +115,27 @@ class CoreAgent:
         #     self.messages.insert(0, SystemMessage(prompt).to_dict())
         try:
             assistant = ""
-            # while True:
-            for i in range(0, 10):
+            while True:
+            # for i in range(0, 10):
                 # stream = self.adapter.stream_invoke(messages=self.messages, tools=tools)
                 stream = self.adapter.stream_invoke(messages=messages, tools=tools)
                 for event in self.parser.process_stream(stream):
                     if type(event) == AssistantMessage:
                         assistant += event.content
                         yield event
-                    elif type(event) == ReasonMessage:
+                    elif type(event) == ToolMessage:
+                        tool_call_id = event.tool_call_id
+                        name = event.name
+                        arguments = event.content[0]["args"]
                         yield event
-                    elif type(event) == ToolCallMessage:
-                        function = event.function
-                        id = event.id
-                        name = function["name"]
-                        arguments = function["arguments"]
-                        yield ToolCallMessage(id, id, name, arguments)
+                        messages.append(event.to_dict())
                         try:
                             args = json.loads(arguments) if arguments else {}
                             tool_ret = getattr(asyncio.run(mcp_manage.call(name, args)), "content")
                             if tool_ret is not None and len(tool_ret) > 0:
                                 res = getattr(tool_ret[0], tool_ret[0].type)
-                                result = AssistantMessage(content=[TextOutput(str(res)).to_dict()])
                                 messages.append(
-                                    result.to_dict()
+                                    AssistantMessage([TextOutput(res).to_dict()]).to_dict()
                                 )
                                 print(f"messages={messages}")
                         except Exception as e:

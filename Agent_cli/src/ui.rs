@@ -1,5 +1,6 @@
 use std::format;
 
+use crate::api::ContentValue;
 use crate::event::AgentEvent;
 use crate::{app::App};
 use ratatui::style::Stylize;
@@ -63,11 +64,19 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
     let mut start = true;
     for block in &app.blocks {
         match block {
-            AgentEvent::User{content: msg} => {
-                text.lines.push(Line::from(vec![
-                    Span::styled("▸ ", Style::default().fg(Color::White)),
-                    Span::styled(msg, Style::default().fg(Color::White))
-                ]));
+            AgentEvent::User{content} => {
+                if let ContentValue::Str(content) = &content {
+                    text.lines.push(Line::from(vec![
+                        Span::styled("▸ ", Style::default().fg(Color::White)),
+                        Span::styled(content, Style::default().fg(Color::White))
+                    ]));
+                }
+                if let ContentValue::Dict(content) = &content {
+                    text.lines.push(Line::from(vec![
+                        Span::styled("▸ ", Style::default().fg(Color::White)),
+                        Span::styled(content[0]["text"].to_string(), Style::default().fg(Color::White))
+                    ]));
+                }
                 start = true;
                 true
             }
@@ -79,40 +88,51 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
                     ]));
                     start = false;
                 }
-                text.push_span(content);
+                if let ContentValue::Str(content) = &content {
+                    text.push_span(content);
+                }
+                if let ContentValue::Dict(content) = &content {
+                    if content[0]["type"] == "function_call" {
+                        let name = content[0]["name"].to_string();
+                        let args = content[0]["args"].to_string();
+                        text.push_span(
+                            Span::styled(format!("🛠 {name}{args}"),  Style::default().fg(Color::Yellow))
+                        );
+                    }else{
+                        text.push_span(content[0]["text"].to_string());
+                    }
+                }
                 true
             }
 
-            AgentEvent::Reasoning{content: msg} => {
-                if app.show_reasoning {
+            AgentEvent::Tool{ tool_call_id, name, content } => {
+                if let ContentValue::Str(content) = &content {
                     text.lines.push(Line::from(vec![
-                        Span::styled(
-                            msg.as_str(),
-                            Style::default()
-                                .fg(Color::DarkGray)
-                                .add_modifier(Modifier::ITALIC),
-                        ),
+                        Span::styled(format!("🛠 {name}({content})"), Style::default().fg(Color::Yellow))
+                    ]));
+                }
+                if let ContentValue::Dict(content) = &content {
+                    let args = content[0]["args"].to_string();
+                    text.lines.push(Line::from(vec![
+                        Span::styled(format!("🛠 {name}({args})"), Style::default().fg(Color::Yellow))
                     ]));
                 }
                 true
             }
 
-            AgentEvent::ToolCall{ id, name, args } => {
-                text.lines.push(Line::from(vec![
-                    Span::styled(format!("🛠 {name}({args})"), Style::default().fg(Color::Yellow))
-                ]));
-                true
-            }
-
-            AgentEvent::ToolResult{ .. } => {
-                false
-            }
-
             AgentEvent::Error{content} => {
-                text.lines.push(Line::from(vec![
-                    Span::styled("Error: ", Style::default().fg(Color::Red)),
-                    Span::styled(content.as_str(), Style::default().fg(Color::Red)),
-                ]));
+                if let ContentValue::Str(content) = &content {
+                    text.lines.push(Line::from(vec![
+                        Span::styled("Error: ", Style::default().fg(Color::Red)),
+                        Span::styled(content, Style::default().fg(Color::Red))
+                    ]));
+                }
+                if let ContentValue::Dict(content) = &content {
+                    text.lines.push(Line::from(vec![
+                        Span::styled("Error: ", Style::default().fg(Color::Red)),
+                        Span::styled(content[0]["text"].to_string(), Style::default().fg(Color::Red))
+                    ]));
+                }
                 true
             }
 
