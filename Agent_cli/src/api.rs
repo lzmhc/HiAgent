@@ -6,7 +6,7 @@ use futures_util::StreamExt;
 use reqwest::Client;
 use serde_json::{Map, Value, json};
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize};
 
 #[derive(Debug, Deserialize)]
 pub struct AppStatus {
@@ -15,19 +15,14 @@ pub struct AppStatus {
     pub model_reasoning_effort: String
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(untagged)]
-pub enum ContentValue {
-    Str(String),
-    Dict(Vec<Map<String, Value>>),
-}
 
 #[derive(Debug, Deserialize)]
 struct SseEvent {
     role: String,
-    content: Option<ContentValue>,
-    tool_call_id: Option<String>,
+    content: Option<String>,
+    call_id: Option<String>,
     name: Option<String>,
+    args: Option<String>,
     completion_tokens: Option<u64>,
     prompt_tokens: Option<u64>,
     total_tokens: Option<u64>
@@ -65,22 +60,28 @@ pub async fn chat(
         let data: SseEvent = serde_json::from_str(&event.data)?;
 
         match data.role.as_str() {
-            "assistant" => {
+            "content" => {
                 if let Some(content) = data.content {
-                    tx.send(AgentEvent::Assistant { content: content })?;
+                    tx.send(AgentEvent::Content{ content: content });
                 }
             }
-            "tool" => {
-                if let (Some(content), Some(tool_call_id), Some(name)) = (&data.content, &data.tool_call_id, &data.name){
-                    tx.send(AgentEvent::Tool {
-                        tool_call_id: tool_call_id.clone(),
-                        name: name.clone(),
-                        content: content.clone(),
-                    })?;
+            "content_delta" => {
+                if let Some(content) = data.content {
+                    tx.send(AgentEvent::ContentDeltaEvent { content });
+                }
+            }
+            "tool_call" => {
+                if let (Some(call_id), Some(name), Some(args)) = (data.call_id, data.name, data.args){
+                    tx.send(AgentEvent::ToolCallEvent{ call_id: call_id, name: name, args: args });
                 }
             },
+            "tool_result" => {
+                if let (Some(call_id), Some(content)) = (data.call_id, data.content){
+                    tx.send(AgentEvent::ToolResultEvent { call_id: call_id, content: content });
+                }
+            }
             "stop" => {
-                tx.send(AgentEvent::Stop)?;
+                tx.send(AgentEvent::Stop{});
             }
             "error" => {
                 if let Some(content) = data.content {
@@ -135,51 +136,18 @@ pub async fn fetch_session_history(session_id: String) -> Result<Vec<AgentEvent>
            let role = msg["role"].as_str()?;
            match role {                                                                                        
                 "user" => {
-                    let val = &msg["content"];
-                    let content = match val {
-                        Value::Array(arr) => {
-                            let dict_list: Vec<Map<String, Value>> = arr
-                                .iter()
-                                .filter_map(|v| v.as_object().cloned())
-                                .collect();
-                            ContentValue::Dict(dict_list)
-                        },
-                        Value::String(s) => ContentValue::Str(s.clone()),
-                        _ => ContentValue::Str(val.to_string())
-                    };
-                    Some(AgentEvent::User{content})
+                    let content = msg["content"].as_str()?;
+                    Some(AgentEvent::User{content: content.to_string()})
                 },                                                       
-                "assistant" => {
-                    let val = &msg["content"];
-                    let content = match val {
-                        Value::Array(arr) => {
-                            let dict_list: Vec<Map<String, Value>> = arr
-                                .iter()
-                                .filter_map(|v| v.as_object().cloned())
-                                .collect();
-                            ContentValue::Dict(dict_list)
-                        },
-                        Value::String(s) => ContentValue::Str(s.clone()),
-                        _ => ContentValue::Str(val.to_string())
-                    };
-                    Some(AgentEvent::Assistant{content})
+                "content" => {
+                    let content = msg["content"].as_str()?;
+                    Some(AgentEvent::Content{content: content.to_string()})
                 },
-                "tool" => {
-                    let tool_call_id = msg["tool_call_id"].as_str().unwrap_or("").to_string(); 
+                "tool_call" => {
+                    let call_id = msg["call_id"].as_str().unwrap_or("").to_string(); 
                     let name = msg["name"].as_str().unwrap_or("").to_string(); 
-                    let val = &msg["content"];
-                    let content = match val {
-                        Value::Array(arr) => {
-                            let dict_list: Vec<Map<String, Value>> = arr
-                                .iter()
-                                .filter_map(|v| v.as_object().cloned())
-                                .collect();
-                            ContentValue::Dict(dict_list)
-                        },
-                        Value::String(s) => ContentValue::Str(s.clone()),
-                        _ => ContentValue::Str(val.to_string())
-                    };
-                    Some(AgentEvent::Tool { tool_call_id, name, content })
+                    let args = msg["args"].as_str().unwrap_or("").to_string();
+                    Some(AgentEvent::ToolCallEvent{ call_id: call_id, name: name, args: args})
                 }
                 _ => None,                                                                                      
            }                                                                                                   

@@ -1,24 +1,26 @@
-use crate::api::ContentValue;
-
 #[derive(Debug)]
 pub enum AgentEvent {
-    System {
-        content: ContentValue
-    },
     User {
-        content: ContentValue,
+        content: String,
     },
-    Assistant {
-        content: ContentValue,
+    Content {
+        content: String,
     },
-    Tool {
-        tool_call_id: String,
+    ContentDeltaEvent{
+        content: String,
+    },
+    ToolCallEvent {
+        call_id: String,
         name: String,
-        content: ContentValue
+        args: String
     },
-    Stop,
+    ToolResultEvent {
+        call_id: String,
+        content: String
+    },
+    Stop {},
     Error {
-        content: ContentValue,
+        content: String,
     },
     Token {
         completion_tokens: u64,

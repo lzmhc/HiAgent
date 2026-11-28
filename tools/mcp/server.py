@@ -39,11 +39,12 @@ class ShellSession:
             r, _, _ = select.select([self.master], [], [], 10)
             if not r:
                 break
-            chunk = os.read(self.master, 4096)
+            chunk = os.read(self.master, 1024 * 10)
+            print(chunk)
             if not chunk:
                 break
             yield chunk.decode("utf-8")
-
+            # yield chunk
 shell_session = ShellSession()
 @mcp.tool(
     name="execute_pty",

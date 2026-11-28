@@ -1,6 +1,6 @@
 from typing import Generator
 from memory.message import TokenEvent, StopEvent, \
-    AssistantMessage, TextOutput, ToolMessage, FunctionCall
+    AssistantMessage, TextOutput, FunctionCall, ContentEvent, ContentDeltaEvent
 
 
 class ToolCallParser:
@@ -13,7 +13,9 @@ class ToolCallParser:
         for event in stream:
             print(event)
             if event.type == "response.output_text.delta":
-                yield AssistantMessage(event.delta)
+                yield ContentDeltaEvent(event.delta)
+            elif event.type == "response.output_text.done":
+                yield AssistantMessage(event.text)
             elif event.type == "response.output_item.added":
                 item = event.item
                 if item.type == "function_call":
@@ -29,7 +31,7 @@ class ToolCallParser:
                     print("stop")
                     yield StopEvent()
             if self.call_id is not None and self.name is not None and self.args is not None:
-                yield ToolMessage(self.call_id, self.name, [FunctionCall(self.call_id, self.name, self.args).to_dict()])
+                yield FunctionCall(self.call_id, self.name, self.args)
                 self.call_id = None
                 self.name = None
                 self.args = None

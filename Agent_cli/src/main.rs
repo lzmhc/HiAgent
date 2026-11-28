@@ -3,7 +3,7 @@ mod api;
 mod app;
 mod ui;
 
-use crate::{api::ContentValue, event::AgentEvent};
+use crate::{event::AgentEvent};
 use app::App;
 use crossterm::{
     event::{self as ct_event, Event, KeyCode, KeyModifiers},
@@ -147,7 +147,7 @@ fn run() -> color_eyre::eyre::Result<()> {
                         if prompt.trim().is_empty() {
                             continue;
                         }
-                        app.blocks.push(AgentEvent::User { content: ContentValue::Str(prompt.clone()) });
+                        app.blocks.push(AgentEvent::User { content: prompt.clone() });
                         let tx = tx.clone();
                         std::thread::spawn(move || {
                             let rt = tokio::runtime::Runtime::new().unwrap();

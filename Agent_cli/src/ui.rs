@@ -1,10 +1,8 @@
 use std::format;
 
-use crate::api::ContentValue;
 use crate::event::AgentEvent;
 use crate::{app::App};
 use ratatui::style::Stylize;
-use ratatui::text::ToSpan;
 use ratatui::{layout::Rect, widgets::ListItem};
 use ratatui::widgets::{Clear, HighlightSpacing, List, Wrap};
 use unicode_width::UnicodeWidthChar;
@@ -61,78 +59,62 @@ fn draw_header(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
 
 fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
     let mut text = Text::default();
-    let mut start = true;
+    let mut delta = true;
     for block in &app.blocks {
         match block {
             AgentEvent::User{content} => {
-                if let ContentValue::Str(content) = &content {
-                    text.lines.push(Line::from(vec![
-                        Span::styled("▸ ", Style::default().fg(Color::White)),
-                        Span::styled(content, Style::default().fg(Color::White))
-                    ]));
-                }
-                if let ContentValue::Dict(content) = &content {
-                    text.lines.push(Line::from(vec![
-                        Span::styled("▸ ", Style::default().fg(Color::White)),
-                        Span::styled(content[0]["text"].to_string(), Style::default().fg(Color::White))
-                    ]));
-                }
-                start = true;
+                text.lines.push(Line::from(vec![
+                    Span::styled("▸ ", Style::default().fg(Color::White)),
+                    Span::styled(content, Style::default().fg(Color::White))
+                ]));
+                delta = true;
                 true
             }
 
-            AgentEvent::Assistant { content } => {
-                if start {
-                    text.lines.push(Line::from(vec![
-                        Span::styled("▹ ", Style::default().fg(Color::Cyan)),
-                    ]));
-                    start = false;
-                }
-                if let ContentValue::Str(content) = &content {
-                    text.push_span(content);
-                }
-                if let ContentValue::Dict(content) = &content {
-                    if content[0]["type"] == "function_call" {
-                        let name = content[0]["name"].to_string();
-                        let args = content[0]["args"].to_string();
-                        text.push_span(
-                            Span::styled(format!("🛠 {name}{args}"),  Style::default().fg(Color::Yellow))
-                        );
-                    }else{
-                        text.push_span(content[0]["text"].to_string());
-                    }
-                }
+            AgentEvent::Content{ content } => {
+                text.lines.push(Line::from(vec![
+                    Span::styled("▹ ", Style::default().fg(Color::Cyan)),
+                    Span::styled(content, Style::default().fg(Color::Cyan))
+                ]));
                 true
             }
 
-            AgentEvent::Tool{ tool_call_id, name, content } => {
-                if let ContentValue::Str(content) = &content {
-                    text.lines.push(Line::from(vec![
-                        Span::styled(format!("🛠 {name}({content})"), Style::default().fg(Color::Yellow))
-                    ]));
+            AgentEvent::ContentDeltaEvent{ content } => {
+                if delta{
+                    text.lines.push(Line::default());
+                    text.push_span(Span::from(
+                        Span::styled("▹ ", Style::default().fg(Color::Cyan))
+                    ));
+                    delta = false;
                 }
-                if let ContentValue::Dict(content) = &content {
-                    let args = content[0]["args"].to_string();
-                    text.lines.push(Line::from(vec![
-                        Span::styled(format!("🛠 {name}({args})"), Style::default().fg(Color::Yellow))
-                    ]));
-                }
+                text.push_span(Span::from(
+                    Span::styled(content, Style::default().fg(Color::Cyan))
+                ));
+                true
+            }
+
+            AgentEvent::ToolCallEvent{ call_id, name, args } => {
+                text.lines.push(Line::from(vec![
+                    Span::styled(format!("🛠 {name}({args})"), Style::default().fg(Color::Yellow))
+                ]));
+                delta = true;
+                true
+            }
+
+            AgentEvent::ToolResultEvent{ call_id, content } => {
+                text.lines.push(Line::from(vec![
+                    Span::styled(format!("⚡ {content}"), Style::default().fg(Color::Green))
+                ]));
+                delta = true;
                 true
             }
 
             AgentEvent::Error{content} => {
-                if let ContentValue::Str(content) = &content {
-                    text.lines.push(Line::from(vec![
-                        Span::styled("Error: ", Style::default().fg(Color::Red)),
-                        Span::styled(content, Style::default().fg(Color::Red))
-                    ]));
-                }
-                if let ContentValue::Dict(content) = &content {
-                    text.lines.push(Line::from(vec![
-                        Span::styled("Error: ", Style::default().fg(Color::Red)),
-                        Span::styled(content[0]["text"].to_string(), Style::default().fg(Color::Red))
-                    ]));
-                }
+                text.lines.push(Line::from(vec![
+                    Span::styled("Error: ", Style::default().fg(Color::Red)),
+                    Span::styled(content, Style::default().fg(Color::Red))
+                ]));
+                delta = true;
                 true
             }
 
@@ -141,6 +123,11 @@ fn draw_chat(frame: &mut Frame, area: Rect, app: &mut App) {
                 text.push_span(Span::from(
                     Span::styled(s, Style::default().fg(Color::DarkGray))
                 ));
+                delta = true;
+                true
+            }
+
+            AgentEvent::Stop{} => {
                 true
             }
 
